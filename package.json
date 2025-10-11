@@ -1,6 +1,7 @@
 {
   "name": "disney-room-scraper",
   "version": "1.0.0",
+  "type": "module",
   "description": "Self-hosted Disney room availability scraper",
   "main": "scraper.js",
   "scripts": {
@@ -8,6 +9,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "nodemailer": "^6.9.7"
   }
 }
