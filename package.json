@@ -1,17 +1,13 @@
 {
-  "name": "disney-scraper",
+  "name": "disney-room-scraper",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Self-hosted Disney room availability scraper",
+  "main": "scraper.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node scraper.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "@supabase/supabase-js": "^2.75.0",
-    "dotenv": "^17.2.3",
-    "puppeteer": "^24.23.0"
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1"
   }
 }
