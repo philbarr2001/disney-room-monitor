@@ -231,7 +231,6 @@ function findMatchingRooms(rooms, alert) {
     if (alert.availability_type === 'discounted') {
       // Skip room-only for discounted-only searches
       if (room.discountCode === 'room-only') {
-        console.log(`  Skipping ${alert.room_category} - no discount available (discounted-only search)`);
         continue;
       }
     }
@@ -250,30 +249,127 @@ function findMatchingRooms(rooms, alert) {
   return matches;
 }
 
-// Send email alert
-async function sendAlertEmail(alert, matches) {
-  const roomList = matches.map(m => 
-    `- ${m.roomType}: $${m.price} (Code: ${m.discountCode})`
-  ).join('\n');
+// Deduplicate matches - prefer discounted over room-only
+function deduplicateMatches(matches) {
+  if (matches.length <= 1) return matches;
   
+  // Group by room type
+  const byRoomType = {};
+  for (const match of matches) {
+    const key = `${match.roomType}`;
+    if (!byRoomType[key]) {
+      byRoomType[key] = [];
+    }
+    byRoomType[key].push(match);
+  }
+  
+  // For each room type, prefer discounted over room-only
+  const deduplicated = [];
+  for (const roomMatches of Object.values(byRoomType)) {
+    // Find if there's a discounted rate
+    const discounted = roomMatches.find(m => m.discountCode !== 'room-only');
+    if (discounted) {
+      // Use discounted rate only
+      deduplicated.push(discounted);
+    } else {
+      // Use room-only
+      deduplicated.push(roomMatches[0]);
+    }
+  }
+  
+  return deduplicated;
+}
+
+// Discount code labels
+const discountLabels = {
+  '11296': 'Fall 2025 Discount',
+  '11313': 'Spring 2026 Discount',
+  '11316': 'Package Discount'
+};
+
+// Send email alert with beautiful template
+async function sendAlertEmail(alert, matches) {
+  // Deduplicate matches (prefer discounted over room-only)
+  const uniqueMatches = deduplicateMatches(matches);
+  
+  // Determine if this is a discounted rate
+  const hasDiscount = uniqueMatches.some(m => m.discountCode !== 'room-only');
+  
+  // Build rate display
+  let rateDisplay = '';
+  if (uniqueMatches.length === 1) {
+    const match = uniqueMatches[0];
+    rateDisplay = `<div style="background:#1BC5D4;color:#fff;display:inline-block;padding:10px 20px;border-radius:25px;font-size:20px;margin-bottom:8px;">$${match.price}/night</div>`;
+  }
+  
+  // Build discount section
+  let discountSection = '';
+  if (hasDiscount) {
+    const discountedMatch = uniqueMatches.find(m => m.discountCode !== 'room-only');
+    const discountLabel = discountLabels[discountedMatch.discountCode] || 'Promotional Discount';
+    
+    discountSection = `
+      <div style="margin-bottom:20px;padding:15px;background:#f0fdf4;border:2px solid #10b981;border-radius:8px;">
+        <h4 style="color:#10b981;margin:0 0 12px 0;font-size:18px;">Available Discounts:</h4>
+        <div style="margin-bottom:10px;padding:12px;background:#ffffff;border-left:4px solid #10b981;border-radius:4px;">
+          <strong style="color:#1F202D;font-size:16px;display:block;margin-bottom:4px;">${discountLabel}</strong>
+          <div style="color:#10b981;font-size:14px;font-weight:600;">Discounted Rate Available!</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  const html = `<!DOCTYPE html>
+<html>
+<body style="font-family:Arial;">
+  <div style="max-width:600px;margin:0 auto;">
+    <div style="background:#1BC5D4;padding:30px;text-align:center;">
+      <img src="http://cdn.mcauto-images-production.sendgrid.net/bde4f566d6ba3b93/caf946ac-e7ea-4412-a25a-216e635a7070/600x300.png" alt="Mouse Agents" style="width:150px;height:75px;display:block;margin:0 auto 5px;">
+      <h1 style="color:#fff;margin:0;">Room Finder Alert</h1>
+    </div>
+    
+    <div style="padding:20px;">
+      <div style="border:3px solid #1BC5D4;padding:25px;text-align:center;">
+        <h2 style="color:#1BC5D4;">${alert.resort_name}</h2>
+        <h3>${alert.room_category}</h3>
+        ${rateDisplay}
+      </div>
+      
+      ${discountSection}
+      
+      <div style="text-align:center;margin:20px 0;">
+        <div style="margin-bottom:8px;">
+          <span style="color:#1F202D;font-weight:bold;margin-right:8px;">Check-in:</span>
+          <span style="color:#1F202D;">${alert.check_in_date}</span>
+        </div>
+        <div style="margin-bottom:8px;">
+          <span style="color:#1F202D;font-weight:bold;margin-right:8px;">Check-out:</span>
+          <span style="color:#1F202D;">${alert.check_out_date}</span>
+        </div>
+        <div style="margin-bottom:8px;">
+          <span style="color:#1F202D;font-weight:bold;margin-right:8px;">Client:</span>
+          <span style="color:#1F202D;">${alert.client_name}</span>
+        </div>
+      </div>
+      
+      <div style="text-align:center;margin:20px 0;">
+        <a href="https://www.disneytravelagents.com/" style="background:#1BC5D4;color:#fff;text-decoration:none;padding:12px 25px;border-radius:5px;display:inline-block;margin-right:10px;">Reserve This Room</a>
+        <a href="https://mouseagents.com/room-alerts-dashboard/" style="background:#1F202D;color:#fff;text-decoration:none;padding:12px 25px;border-radius:5px;display:inline-block;">Manage Alerts</a>
+      </div>
+    </div>
+    
+    <div style="background:#1F202D;padding:15px;text-align:center;">
+      <p style="color:#fff;font-size:12px;margin:0;">Mouse Agents, Inc.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
   const msg = {
     to: alert.user_email,
-    from: 'alerts@mouseagents.com', // Must be verified in SendGrid
-    subject: `🏰 Disney Room Alert: ${matches.length} room(s) available!`,
-    text: `Great news! We found ${matches.length} room(s) matching your alert:
-
-Client: ${alert.client_name}
-Resort: ${alert.resort_name}
-Dates: ${alert.check_in_date} to ${alert.check_out_date}
-
-Available Rooms:
-${roomList}
-
-Book now at https://disneyworld.disney.go.com/
-
----
-This is an automated alert from your Disney Room Monitor.
-`
+    from: 'alerts@mouseagents.com',
+    subject: `Room Finder Alert: ${alert.resort_name}`,
+    html: html
   };
 
   try {
@@ -382,7 +478,7 @@ async function scrapeResorts() {
     
     if (currentIndex < totalResorts - 1) {
       // Small delay to avoid hammering the API
-      await delay(500); // 0.5 seconds instead of 2-8 seconds
+      await delay(500); // 0.5 seconds
     }
   }
   
@@ -402,6 +498,8 @@ async function scrapeResorts() {
       if (discountCodes.length === 0) continue;
     }
     
+    // Collect all matches for this alert across all discount codes
+    let allMatches = [];
     for (const code of discountCodes) {
       const key = `${alert.resort_slug}|${alert.check_in_date}|${alert.check_out_date}|${code}`;
       const rooms = apiCache.get(key);
@@ -412,12 +510,13 @@ async function scrapeResorts() {
       }
       
       const matches = findMatchingRooms(rooms, alert);
-      
-      if (matches.length > 0) {
-        totalMatches += matches.length;
-        console.log(`Alert ${alert.id}: Found ${matches.length} matching room(s)`);
-        await sendAlertEmail(alert, matches);
-      }
+      allMatches = allMatches.concat(matches);
+    }
+    
+    if (allMatches.length > 0) {
+      totalMatches += allMatches.length;
+      console.log(`Alert ${alert.id}: Found ${allMatches.length} matching room(s)`);
+      await sendAlertEmail(alert, allMatches);
     }
   }
   
