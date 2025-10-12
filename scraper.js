@@ -313,7 +313,6 @@ async function sendAlertEmail(alert, matches) {
         <h4 style="color:#10b981;margin:0 0 12px 0;font-size:18px;">Available Discounts:</h4>
         <div style="margin-bottom:10px;padding:12px;background:#ffffff;border-left:4px solid #10b981;border-radius:4px;">
           <strong style="color:#1F202D;font-size:16px;display:block;margin-bottom:4px;">${discountLabel}</strong>
-          <div style="color:#10b981;font-size:14px;font-weight:600;">Discounted Rate Available!</div>
         </div>
       </div>
     `;
