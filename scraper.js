@@ -16,11 +16,7 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function randomDelay(min = 2000, max = 8000) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-// Map internal slugs to Disney API slugs (from Apify)
+// Map internal slugs to Disney API slugs
 const slugToDisneyAPI = {
   'animal-kingdom-villas-jambo': 'animal-kingdom-lodge',
   'animal-kingdom-villas-kidani': 'animal-kingdom-lodge',
@@ -30,41 +26,6 @@ const slugToDisneyAPI = {
 function getDisneyAPISlug(internalSlug) {
   return slugToDisneyAPI[internalSlug] || internalSlug;
 }
-
-// Resort name mapping (from Apify)
-const resortNames = {
-  'animal-kingdom-lodge': "Disney's Animal Kingdom Lodge",
-  'animal-kingdom-villas-jambo': "Disney's Animal Kingdom Villas - Jambo House",
-  'animal-kingdom-villas-kidani': "Disney's Animal Kingdom Villas - Kidani Village",
-  'bay-lake-tower-at-contemporary': "Bay Lake Tower at Disney's Contemporary Resort",
-  'beach-club-resort': "Disney's Beach Club Resort",
-  'beach-club-villas': "Disney's Beach Club Villas",
-  'boardwalk-inn': "Disney's BoardWalk Inn",
-  'boardwalk-villas': "Disney's BoardWalk Villas",
-  'boulder-ridge-villas-at-wilderness-lodge': "Boulder Ridge Villas at Disney's Wilderness Lodge",
-  'copper-creek-villas-and-cabins': "Copper Creek Villas & Cabins at Disney's Wilderness Lodge",
-  'old-key-west-resort': "Disney's Old Key West Resort",
-  'polynesian-village-resort': "Disney's Polynesian Village Resort",
-  'polynesian-villas-bungalows': "Disney's Polynesian Villas & Bungalows",
-  'riviera-resort': "Disney's Riviera Resort",
-  'saratoga-springs-resort-and-spa': "Disney's Saratoga Springs Resort & Spa",
-  'villas-at-grand-floridian-resort-and-spa': "The Villas at Disney's Grand Floridian Resort & Spa",
-  'dvc-cabins-at-fort-wilderness-resort': "The Cabins at Disney's Fort Wilderness Resort",
-  'campsites-at-fort-wilderness-resort': "The Campsites at Disney's Fort Wilderness Resort",
-  'contemporary-resort': "Disney's Contemporary Resort",
-  'grand-floridian-resort-and-spa': "Disney's Grand Floridian Resort & Spa",
-  'wilderness-lodge-resort': "Disney's Wilderness Lodge",
-  'yacht-club-resort': "Disney's Yacht Club Resort",
-  'all-star-movies-resort': "Disney's All-Star Movies Resort",
-  'all-star-music-resort': "Disney's All-Star Music Resort",
-  'all-star-sports-resort': "Disney's All-Star Sports Resort",
-  'art-of-animation-resort': "Disney's Art of Animation Resort",
-  'pop-century-resort': "Disney's Pop Century Resort",
-  'caribbean-beach-resort': "Disney's Caribbean Beach Resort",
-  'coronado-springs-resort': "Disney's Coronado Springs Resort",
-  'port-orleans-resort-french-quarter': "Disney's Port Orleans Resort - French Quarter",
-  'port-orleans-resort-riverside': "Disney's Port Orleans Resort - Riverside"
-};
 
 // Complete room code mappings from Apify
 const roomMappingsByResort = {
@@ -116,18 +77,9 @@ function getRoomName(resortSlug, roomCode) {
 
 // Discount code validity periods
 const discountCodePeriods = {
-  '11296': { // Fall 2025 discount
-    start: new Date('2025-10-01'),
-    end: new Date('2025-12-31')
-  },
-  '11313': { // Spring 2026 discount
-    start: new Date('2026-01-01'),
-    end: new Date('2026-05-31')
-  },
-  '11316': { // Package discount
-    start: new Date('2026-01-01'),
-    end: new Date('2026-07-31')
-  }
+  '11296': { start: new Date('2025-10-01'), end: new Date('2025-12-31') },
+  '11313': { start: new Date('2026-01-01'), end: new Date('2026-05-31') },
+  '11316': { start: new Date('2026-01-01'), end: new Date('2026-07-31') }
 };
 
 // Filter discount codes based on check-in date
@@ -136,7 +88,6 @@ function getValidDiscountCodes(checkinDate, selectedCodes) {
   const validCodes = [];
   
   for (const code of selectedCodes) {
-    // room-only is always valid
     if (code === 'room-only') {
       validCodes.push(code);
       continue;
@@ -144,12 +95,10 @@ function getValidDiscountCodes(checkinDate, selectedCodes) {
     
     const period = discountCodePeriods[code];
     if (!period) {
-      // Unknown code, include it to be safe
       validCodes.push(code);
       continue;
     }
     
-    // Check if checkin date falls within the discount period
     if (checkin >= period.start && checkin <= period.end) {
       validCodes.push(code);
     }
@@ -191,7 +140,6 @@ async function fetchDisneyRooms(resortId, discountCode, checkinDate, checkoutDat
     const data = await response.json();
     const roomPriceLookup = data.roomPriceLookup || {};
     
-    // Convert to array of rooms with their codes
     return Object.values(roomPriceLookup).map(room => ({
       ...room,
       discountCode
@@ -206,8 +154,6 @@ async function fetchDisneyRooms(resortId, discountCode, checkinDate, checkoutDat
 // Find matching rooms based on alert criteria
 function findMatchingRooms(rooms, alert) {
   const matches = [];
-  
-  // Get the room code from the alert's room_category
   const alertRoomCode = roomMappingsByResort[alert.resort_slug]?.[alert.room_category];
   
   if (!alertRoomCode) {
@@ -216,26 +162,16 @@ function findMatchingRooms(rooms, alert) {
   }
   
   for (const room of rooms) {
-    // Skip if room code doesn't match alert
     if (room.code !== alertRoomCode) continue;
-    
-    // Skip if unavailable
     if (room.reasonUnavailable) continue;
-    
-    // Skip if no price
     if (!room.displayPrice?.basePrice?.subtotal) continue;
     
     const roomPrice = Math.round(room.displayPrice.basePrice.subtotal);
     
-    // For discounted-only alerts, only include if there's an actual discount
     if (alert.availability_type === 'discounted') {
-      // Skip room-only for discounted-only searches
-      if (room.discountCode === 'room-only') {
-        continue;
-      }
+      if (room.discountCode === 'room-only') continue;
     }
     
-    // Check price threshold if set
     if (alert.max_price && roomPrice > alert.max_price) continue;
     
     matches.push({
@@ -253,7 +189,6 @@ function findMatchingRooms(rooms, alert) {
 function deduplicateMatches(matches) {
   if (matches.length <= 1) return matches;
   
-  // Group by room type
   const byRoomType = {};
   for (const match of matches) {
     const key = `${match.roomType}`;
@@ -263,21 +198,56 @@ function deduplicateMatches(matches) {
     byRoomType[key].push(match);
   }
   
-  // For each room type, prefer discounted over room-only
   const deduplicated = [];
   for (const roomMatches of Object.values(byRoomType)) {
-    // Find if there's a discounted rate
     const discounted = roomMatches.find(m => m.discountCode !== 'room-only');
     if (discounted) {
-      // Use discounted rate only
       deduplicated.push(discounted);
     } else {
-      // Use room-only
       deduplicated.push(roomMatches[0]);
     }
   }
   
   return deduplicated;
+}
+
+// Check if we should send an alert (2-hour cooldown)
+function shouldSendAlert(alert) {
+  if (!alert.last_notification_sent) {
+    return true;
+  }
+  
+  const lastNotification = new Date(alert.last_notification_sent);
+  const now = new Date();
+  const hoursSince = (now - lastNotification) / (1000 * 60 * 60);
+  
+  if (hoursSince >= 2) {
+    return true;
+  }
+  
+  console.log(`  ⏱️  Skipping alert ${alert.id} - last sent ${hoursSince.toFixed(1)} hours ago`);
+  return false;
+}
+
+// Update alert tracking in Supabase
+async function updateAlertTracking(alertId, sentEmail) {
+  const updates = {
+    last_checked_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  
+  if (sentEmail) {
+    updates.last_notification_sent = new Date().toISOString();
+  }
+  
+  const { error } = await supabase
+    .from('alerts')
+    .update(updates)
+    .eq('id', alertId);
+  
+  if (error) {
+    console.log(`  ✗ Failed to update alert ${alertId}: ${error.message}`);
+  }
 }
 
 // Discount code labels
@@ -289,20 +259,15 @@ const discountLabels = {
 
 // Send email alert with beautiful template
 async function sendAlertEmail(alert, matches) {
-  // Deduplicate matches (prefer discounted over room-only)
   const uniqueMatches = deduplicateMatches(matches);
-  
-  // Determine if this is a discounted rate
   const hasDiscount = uniqueMatches.some(m => m.discountCode !== 'room-only');
   
-  // Build rate display
   let rateDisplay = '';
   if (uniqueMatches.length === 1) {
     const match = uniqueMatches[0];
     rateDisplay = `<div style="background:#1BC5D4;color:#fff;display:inline-block;padding:10px 20px;border-radius:25px;font-size:20px;margin-bottom:8px;">$${match.price}/night</div>`;
   }
   
-  // Build discount section
   let discountSection = '';
   if (hasDiscount) {
     const discountedMatch = uniqueMatches.find(m => m.discountCode !== 'room-only');
@@ -317,6 +282,10 @@ async function sendAlertEmail(alert, matches) {
       </div>
     `;
   }
+  
+  const reservationRow = alert.reservation_number 
+    ? `<div style="margin-bottom:8px;"><span style="color:#1F202D;font-weight:bold;margin-right:8px;">Reservation #:</span><span style="color:#1F202D;">${alert.reservation_number}</span></div>`
+    : '';
   
   const html = `<!DOCTYPE html>
 <html>
@@ -349,6 +318,7 @@ async function sendAlertEmail(alert, matches) {
           <span style="color:#1F202D;font-weight:bold;margin-right:8px;">Client:</span>
           <span style="color:#1F202D;">${alert.client_name}</span>
         </div>
+        ${reservationRow}
       </div>
       
       <div style="text-align:center;margin:20px 0;">
@@ -384,7 +354,6 @@ async function scrapeResorts() {
   console.log('\n=== Disney Scraper Started ===');
   console.log(`Time: ${new Date().toISOString()}\n`);
 
-  // Get all active alerts
   const { data: alerts, error } = await supabase
     .from('alerts')
     .select('*')
@@ -394,29 +363,17 @@ async function scrapeResorts() {
   
   console.log(`Found ${alerts.length} active alerts`);
   
-  // Deduplicate API calls: group by resort + dates + discount code
   const uniqueSearches = new Map();
   
   alerts.forEach(alert => {
     let discountCodes = alert.selected_discount_codes || ['room-only'];
-    
-    // OPTIMIZATION 1: Filter discount codes by date validity
     discountCodes = getValidDiscountCodes(alert.check_in_date, discountCodes);
     
-    if (discountCodes.length === 0) {
-      console.log(`Warning: Alert ${alert.id} has no valid discount codes for ${alert.check_in_date}`);
-      return;
-    }
+    if (discountCodes.length === 0) return;
     
-    // OPTIMIZATION 2: For discounted-only searches, exclude room-only since we skip it anyway
     if (alert.availability_type === 'discounted') {
       discountCodes = discountCodes.filter(code => code !== 'room-only');
-      
-      // If no discount codes left, skip this alert
-      if (discountCodes.length === 0) {
-        console.log(`Warning: Alert ${alert.id} is discounted-only but has no valid discount codes for ${alert.check_in_date}`);
-        return;
-      }
+      if (discountCodes.length === 0) return;
     }
     
     discountCodes.forEach(code => {
@@ -430,7 +387,6 @@ async function scrapeResorts() {
   
   console.log(`Deduplicated to ${uniqueSearches.size} unique API calls (from ${alerts.length} alerts)\n`);
 
-  // Build API calls grouped by resort for efficient batching
   const searchesByResort = new Map();
   
   for (const [key, alertIds] of uniqueSearches) {
@@ -452,61 +408,51 @@ async function scrapeResorts() {
   
   console.log(`Checking ${searchesByResort.size} unique resorts\n`);
   
-  // Cache for API results
   const apiCache = new Map();
   
-  // Process each resort with all its searches in parallel
   for (const [resortSlug, searches] of searchesByResort) {
     console.log(`\n=== Scraping ${resortSlug} (${searches.length} unique searches) ===`);
     
-    // Execute all searches for this resort in parallel
     await Promise.all(
       searches.map(async (search) => {
         console.log(`  API: ${search.code} | ${search.checkin} to ${search.checkout}`);
         const rooms = await fetchDisneyRooms(search.resortSlug, search.code, search.checkin, search.checkout);
         console.log(`  ✓ ${search.code} returned ${rooms.length} rooms`);
-        
-        // Cache the results
         apiCache.set(search.key, rooms);
       })
     );
     
-    // Random delay before next resort
     const totalResorts = searchesByResort.size;
     let currentIndex = Array.from(searchesByResort.keys()).indexOf(resortSlug);
     
     if (currentIndex < totalResorts - 1) {
-      // Small delay to avoid hammering the API
-      await delay(500); // 0.5 seconds
+      await delay(500);
     }
   }
   
   console.log('\n=== Processing Results ===\n');
   
-  // Match cached results to all alerts
   let totalMatches = 0;
+  let totalEmailsSent = 0;
   
   for (const alert of alerts) {
     let discountCodes = alert.selected_discount_codes || ['room-only'];
-    
-    // Apply same filters as above
     discountCodes = getValidDiscountCodes(alert.check_in_date, discountCodes);
     
     if (alert.availability_type === 'discounted') {
       discountCodes = discountCodes.filter(code => code !== 'room-only');
-      if (discountCodes.length === 0) continue;
+      if (discountCodes.length === 0) {
+        await updateAlertTracking(alert.id, false);
+        continue;
+      }
     }
     
-    // Collect all matches for this alert across all discount codes
     let allMatches = [];
     for (const code of discountCodes) {
       const key = `${alert.resort_slug}|${alert.check_in_date}|${alert.check_out_date}|${code}`;
       const rooms = apiCache.get(key);
       
-      if (!rooms) {
-        console.log(`Warning: No cached results for alert ${alert.id} with code ${code}`);
-        continue;
-      }
+      if (!rooms) continue;
       
       const matches = findMatchingRooms(rooms, alert);
       allMatches = allMatches.concat(matches);
@@ -515,11 +461,21 @@ async function scrapeResorts() {
     if (allMatches.length > 0) {
       totalMatches += allMatches.length;
       console.log(`Alert ${alert.id}: Found ${allMatches.length} matching room(s)`);
-      await sendAlertEmail(alert, allMatches);
+      
+      if (shouldSendAlert(alert)) {
+        await sendAlertEmail(alert, allMatches);
+        await updateAlertTracking(alert.id, true);
+        totalEmailsSent++;
+      } else {
+        await updateAlertTracking(alert.id, false);
+      }
+    } else {
+      await updateAlertTracking(alert.id, false);
     }
   }
   
   console.log(`\nTotal: ${totalMatches} matching rooms found across ${alerts.length} alerts`);
+  console.log(`Emails sent: ${totalEmailsSent}`);
   console.log('=== Scraper Complete ===');
 }
 
