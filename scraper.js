@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 import 'dotenv/config';
 
 // Initialize Supabase client
@@ -8,15 +8,8 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-// Email transporter - SendGrid
-const transporter = nodemailer.createTransport({
-  host: 'smtp.sendgrid.net',
-  port: 587,
-  auth: {
-    user: 'apikey', // This is literally the string "apikey"
-    pass: process.env.SENDGRID_API_KEY
-  }
-});
+// Initialize SendGrid
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // Helper functions
 function delay(ms) {
@@ -263,9 +256,9 @@ async function sendAlertEmail(alert, matches) {
     `- ${m.roomType}: $${m.price} (Code: ${m.discountCode})`
   ).join('\n');
   
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
+  const msg = {
     to: alert.user_email,
+    from: 'alerts@mouseagents.com', // Must be verified in SendGrid
     subject: `🏰 Disney Room Alert: ${matches.length} room(s) available!`,
     text: `Great news! We found ${matches.length} room(s) matching your alert:
 
@@ -284,7 +277,7 @@ This is an automated alert from your Disney Room Monitor.
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sgMail.send(msg);
     console.log(`  ✓ Email sent to ${alert.user_email}`);
   } catch (error) {
     console.log(`  ✗ Email error: ${error.message}`);
