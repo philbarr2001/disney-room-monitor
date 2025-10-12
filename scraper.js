@@ -334,12 +334,15 @@ async function sendAlertEmail(alert, matches) {
 </body>
 </html>`;
 
-  const msg = {
-    to: alert.user_email,
-    from: 'alerts@mouseagents.com',
-    subject: `Room Finder Alert: ${alert.resort_name}`,
-    html: html
-  };
+const msg = {
+  to: alert.user_email,
+  from: {
+    email: 'alerts@mouseagents.com',
+    name: 'Mouse Agents Room Finder'
+  },
+  subject: `Room Finder Alert: ${alert.resort_name}`,
+  html: html
+};
 
   try {
     await sgMail.send(msg);
