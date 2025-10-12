@@ -8,9 +8,11 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-// Email transporter
+// Email transporter - NEW (explicit SMTP settings)
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // true for 465, false for other ports
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
@@ -387,9 +389,8 @@ async function scrapeResorts() {
     let currentIndex = Array.from(searchesByResort.keys()).indexOf(resortSlug);
     
     if (currentIndex < totalResorts - 1) {
-      const delayMs = randomDelay();
-      console.log(`Waiting ${(delayMs / 1000).toFixed(1)}s before next resort...`);
-      await delay(delayMs);
+      // Small delay to avoid hammering the API
+      await delay(500); // 0.5 seconds instead of 2-8 seconds
     }
   }
   
