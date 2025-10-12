@@ -8,14 +8,13 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-// Email transporter - Try SSL on port 465
+// Email transporter - SendGrid
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // SSL
+  host: 'smtp.sendgrid.net',
+  port: 587,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+    user: 'apikey', // This is literally the string "apikey"
+    pass: process.env.SENDGRID_API_KEY
   }
 });
 
