@@ -16,6 +16,15 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Helper function to format dates as MM-DD-YYYY
+function formatDate(dateString) {
+  const date = new Date(dateString);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${month}-${day}-${year}`;
+}
+
 // Map internal slugs to Disney API slugs
 const slugToDisneyAPI = {
   'animal-kingdom-villas-jambo': 'animal-kingdom-lodge',
@@ -257,92 +266,165 @@ const discountLabels = {
   '11316': 'Package Discount'
 };
 
-// Send email alert with beautiful template
-async function sendAlertEmail(alert, matches) {
+// Send email alert with beautiful template and price comparison
+async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
   const uniqueMatches = deduplicateMatches(matches);
   const hasDiscount = uniqueMatches.some(m => m.discountCode !== 'room-only');
   
+  // Always show the current best price prominently
   let rateDisplay = '';
   if (uniqueMatches.length === 1) {
     const match = uniqueMatches[0];
-    rateDisplay = `<div style="background:#1BC5D4;color:#fff;display:inline-block;padding:10px 20px;border-radius:25px;font-size:20px;margin-bottom:8px;">$${match.price}/night</div>`;
+    rateDisplay = `<div style="background:rgba(255,255,255,0.25);color:#fff;display:inline-block;padding:12px 24px;border-radius:30px;font-size:22px;font-weight:600;margin-top:5px;">$${match.price}/night</div>`;
   }
   
+  // Build discount section showing ALL available discounts
   let discountSection = '';
   if (hasDiscount) {
-    const discountedMatch = uniqueMatches.find(m => m.discountCode !== 'room-only');
-    const discountLabel = discountLabels[discountedMatch.discountCode] || 'Promotional Discount';
+    const discountItems = [];
     
-    discountSection = `
-      <div style="margin-bottom:20px;padding:15px;background:#f0fdf4;border:2px solid #10b981;border-radius:8px;">
-        <h4 style="color:#10b981;margin:0 0 12px 0;font-size:18px;">Available Discounts:</h4>
-        <div style="margin-bottom:10px;padding:12px;background:#ffffff;border-left:4px solid #10b981;border-radius:4px;">
-          <strong style="color:#1F202D;font-size:16px;display:block;margin-bottom:4px;">${discountLabel}</strong>
+    // Group matches by discount code
+    const discountsByCode = new Map();
+    for (const match of uniqueMatches) {
+      if (match.discountCode === 'room-only') continue;
+      
+      if (!discountsByCode.has(match.discountCode)) {
+        discountsByCode.set(match.discountCode, match);
+      }
+    }
+    
+    // Build each discount item
+    for (const [code, match] of discountsByCode) {
+      const discountLabel = discountLabels[code] || 'Promotional Discount';
+      
+      // Check if this is a room discount (can compare prices) or package discount
+      let discountDetails = '';
+      
+      // Try to find room-only price for comparison
+      if (roomOnlyMatches && roomOnlyMatches.length > 0) {
+        const roomOnlyMatch = roomOnlyMatches.find(m => m.roomType === match.roomType);
+        
+        if (roomOnlyMatch && roomOnlyMatch.price > match.price) {
+          // Room discount with calculable savings
+          const savings = roomOnlyMatch.price - match.price;
+          discountDetails = `
+            <div style="margin-top:8px;">
+              <div style="color:#1BC5D4;font-size:16px;font-weight:600;margin-bottom:4px;">Save $${savings} per night!</div>
+              <div style="color:#6b7280;font-size:14px;">Was $${roomOnlyMatch.price}/night, now $${match.price}/night</div>
+            </div>
+          `;
+        } else {
+          // Package discount or no savings
+          discountDetails = `
+            <div style="margin-top:8px;">
+              <div style="color:#1BC5D4;font-size:16px;font-weight:600;">Check DTA for pricing!</div>
+            </div>
+          `;
+        }
+      } else {
+        // No room-only data, assume it's a package discount
+        discountDetails = `
+          <div style="margin-top:8px;">
+            <div style="color:#1BC5D4;font-size:16px;font-weight:600;">Check DTA for pricing!</div>
+          </div>
+        `;
+      }
+      
+      discountItems.push(`
+        <div style="margin-bottom:15px;padding:15px;background:#ffffff;border-left:4px solid #1BC5D4;border-radius:6px;box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+          <strong style="color:#1F202D;font-size:16px;display:block;">${discountLabel}</strong>
+          ${discountDetails}
         </div>
-      </div>
-    `;
+      `);
+    }
+    
+    if (discountItems.length > 0) {
+      discountSection = `
+        <div style="margin-bottom:25px;padding:20px;background:#e6f9fb;border-left:4px solid #1BC5D4;border-radius:8px;">
+          <h4 style="color:#1F202D;margin:0 0 15px 0;font-size:18px;font-weight:600;">Available Discounts:</h4>
+          ${discountItems.join('')}
+        </div>
+      `;
+    }
   }
   
   const reservationRow = alert.reservation_number 
-    ? `<div style="margin-bottom:8px;"><span style="color:#1F202D;font-weight:bold;margin-right:8px;">Reservation #:</span><span style="color:#1F202D;">${alert.reservation_number}</span></div>`
+    ? `<div style="display:flex;justify-content:space-between;">
+        <span style="color:#1F202D;font-weight:600;">Reservation #:</span>
+        <span style="color:#1F202D;">${alert.reservation_number}</span>
+      </div>`
     : '';
   
   const html = `<!DOCTYPE html>
 <html>
-<body style="font-family:Arial;">
-  <div style="max-width:600px;margin:0 auto;">
-    <div style="background:#1BC5D4;padding:30px;text-align:center;">
-      <img src="http://cdn.mcauto-images-production.sendgrid.net/bde4f566d6ba3b93/caf946ac-e7ea-4412-a25a-216e635a7070/600x300.png" alt="Mouse Agents" style="width:150px;height:75px;display:block;margin:0 auto 5px;">
-      <h1 style="color:#fff;margin:0;">Room Finder Alert</h1>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#f5f5f5;">
+  <div style="max-width:600px;margin:0 auto;background:#ffffff;">
+    <!-- Header -->
+    <div style="background:#1F202D;padding:40px 20px;text-align:center;">
+      <img src="https://beta.mouseagents.com/wp-content/uploads/2025/10/Mouse-Agents-Clean-Logo-Transparent-600x300px.webp" alt="Mouse Agents" style="width:180px;height:90px;display:block;margin:0 auto 15px;">
+      <h1 style="color:#1BC5D4;margin:0;font-size:28px;font-weight:600;">Room Finder Alert</h1>
     </div>
     
-    <div style="padding:20px;">
-      <div style="border:3px solid #1BC5D4;padding:25px;text-align:center;">
-        <h2 style="color:#1BC5D4;">${alert.resort_name}</h2>
-        <h3>${alert.room_category}</h3>
+    <div style="padding:30px 20px;">
+      <!-- Resort & Room Info -->
+      <div style="background:linear-gradient(135deg, #1BC5D4 0%, #15a8b5 100%);padding:30px;text-align:center;border-radius:12px;margin-bottom:25px;box-shadow:0 4px 6px rgba(27,197,212,0.15);">
+        <h2 style="color:#fff;margin:0 0 10px 0;font-size:26px;font-weight:600;">${alert.resort_name}</h2>
+        <h3 style="color:#fff;margin:0 0 15px 0;font-size:18px;font-weight:400;opacity:0.95;">${alert.room_category}</h3>
         ${rateDisplay}
       </div>
       
       ${discountSection}
       
-      <div style="text-align:center;margin:20px 0;">
-        <div style="margin-bottom:8px;">
-          <span style="color:#1F202D;font-weight:bold;margin-right:8px;">Check-in:</span>
-          <span style="color:#1F202D;">${alert.check_in_date}</span>
+      <!-- Booking Details -->
+      <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin-bottom:25px;">
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#1F202D;font-weight:600;">Check-in:</span>
+            <span style="color:#1F202D;">${formatDate(alert.check_in_date)}</span>
+          </div>
         </div>
-        <div style="margin-bottom:8px;">
-          <span style="color:#1F202D;font-weight:bold;margin-right:8px;">Check-out:</span>
-          <span style="color:#1F202D;">${alert.check_out_date}</span>
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#1F202D;font-weight:600;">Check-out:</span>
+            <span style="color:#1F202D;">${formatDate(alert.check_out_date)}</span>
+          </div>
         </div>
-        <div style="margin-bottom:8px;">
-          <span style="color:#1F202D;font-weight:bold;margin-right:8px;">Client:</span>
-          <span style="color:#1F202D;">${alert.client_name}</span>
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#1F202D;font-weight:600;">Client:</span>
+            <span style="color:#1F202D;">${alert.client_name}</span>
+          </div>
         </div>
         ${reservationRow}
       </div>
       
-      <div style="text-align:center;margin:20px 0;">
-        <a href="https://www.disneytravelagents.com/" style="background:#1BC5D4;color:#fff;text-decoration:none;padding:12px 25px;border-radius:5px;display:inline-block;margin-right:10px;">Reserve This Room</a>
-        <a href="https://mouseagents.com/room-alerts-dashboard/" style="background:#1F202D;color:#fff;text-decoration:none;padding:12px 25px;border-radius:5px;display:inline-block;">Manage Alerts</a>
+      <!-- Action Buttons -->
+      <div style="text-align:center;margin:25px 0;">
+        <a href="https://www.disneytravelagents.com/" style="background:#1BC5D4;color:#fff;text-decoration:none;padding:14px 30px;border-radius:6px;display:inline-block;margin:0 5px 10px 5px;font-weight:600;font-size:16px;box-shadow:0 2px 4px rgba(27,197,212,0.3);">Reserve This Room</a>
+        <a href="https://mouseagents.com/room-finder/dashboard/" style="background:#1F202D;color:#fff;text-decoration:none;padding:14px 30px;border-radius:6px;display:inline-block;margin:0 5px 10px 5px;font-weight:600;font-size:16px;box-shadow:0 2px 4px rgba(31,32,45,0.3);">Manage Alerts</a>
       </div>
     </div>
     
-    <div style="background:#1F202D;padding:15px;text-align:center;">
-      <p style="color:#fff;font-size:12px;margin:0;">Mouse Agents, Inc.</p>
+    <!-- Footer -->
+    <div style="background:#1F202D;padding:20px;text-align:center;">
+      <p style="color:#ffffff;font-size:13px;margin:0;opacity:0.9;">Mouse Agents, Inc.</p>
     </div>
   </div>
 </body>
 </html>`;
 
-const msg = {
-  to: alert.user_email,
-  from: {
-    email: 'alerts@mouseagents.com',
-    name: 'Mouse Agents Room Finder'
-  },
-  subject: `Room Finder Alert: ${alert.resort_name}`,
-  html: html
-};
+  const msg = {
+    to: alert.user_email,
+    from: {
+      email: 'alerts@mouseagents.com',
+      name: 'Mouse Agents Room Finder'
+    },
+    subject: `Room Finder Alert: ${alert.resort_name}`,
+    html: html
+  };
 
   try {
     await sgMail.send(msg);
@@ -451,6 +533,8 @@ async function scrapeResorts() {
     }
     
     let allMatches = [];
+    let hasDiscountCode = false;
+    
     for (const code of discountCodes) {
       const key = `${alert.resort_slug}|${alert.check_in_date}|${alert.check_out_date}|${code}`;
       const rooms = apiCache.get(key);
@@ -459,6 +543,10 @@ async function scrapeResorts() {
       
       const matches = findMatchingRooms(rooms, alert);
       allMatches = allMatches.concat(matches);
+      
+      if (code !== 'room-only') {
+        hasDiscountCode = true;
+      }
     }
     
     if (allMatches.length > 0) {
@@ -466,7 +554,18 @@ async function scrapeResorts() {
       console.log(`Alert ${alert.id}: Found ${allMatches.length} matching room(s)`);
       
       if (shouldSendAlert(alert)) {
-        await sendAlertEmail(alert, allMatches);
+        // If we found discounted rooms, also fetch room-only prices for comparison
+        let roomOnlyMatches = null;
+        if (hasDiscountCode) {
+          const roomOnlyKey = `${alert.resort_slug}|${alert.check_in_date}|${alert.check_out_date}|room-only`;
+          const roomOnlyRooms = apiCache.get(roomOnlyKey);
+          
+          if (roomOnlyRooms) {
+            roomOnlyMatches = findMatchingRooms(roomOnlyRooms, alert);
+          }
+        }
+        
+        await sendAlertEmail(alert, allMatches, roomOnlyMatches);
         await updateAlertTracking(alert.id, true);
         totalEmailsSent++;
       } else {
