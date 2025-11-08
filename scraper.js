@@ -271,12 +271,22 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
   const uniqueMatches = deduplicateMatches(matches);
   const hasDiscount = uniqueMatches.some(m => m.discountCode !== 'room-only');
   
-  // Always show the current best price prominently
+  // Determine what price to show in the header
   let rateDisplay = '';
-  if (uniqueMatches.length === 1) {
-    const match = uniqueMatches[0];
-    rateDisplay = `<div style="background:rgba(255,255,255,0.25);color:#fff;display:inline-block;padding:12px 24px;border-radius:30px;font-size:22px;font-weight:600;margin-top:5px;">$${match.price}/night</div>`;
+  
+  // Check if we have a room-only discount available
+  const roomOnlyMatch = uniqueMatches.find(m => m.discountCode === 'room-only');
+  
+  if (roomOnlyMatch) {
+    // Show room-only price (even if package discounts also exist)
+    rateDisplay = `<div style="background:rgba(255,255,255,0.25);color:#fff;display:inline-block;padding:12px 24px;border-radius:30px;font-size:22px;font-weight:600;margin-top:5px;">$${roomOnlyMatch.price}/night</div>`;
+  } else if (uniqueMatches.length === 1 && uniqueMatches[0].discountCode !== 'room-only') {
+    // Only package discount found - don't show price (it's package total, not per-night)
+    rateDisplay = '';
   }
+  
+  // Note: The "Available Discounts" section below will show ALL discounts
+  // including both room-only and package discounts when both are available
   
   // Build discount section showing ALL available discounts
   let discountSection = '';
