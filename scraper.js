@@ -266,7 +266,7 @@ const discountLabels = {
   '11316': 'Package Discount'
 };
 
-// Send email alert with beautiful template and price comparison
+// Send email alert with redesigned template
 async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
   const uniqueMatches = deduplicateMatches(matches);
   const hasDiscount = uniqueMatches.some(m => m.discountCode !== 'room-only');
@@ -279,14 +279,11 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
   
   if (roomOnlyMatch) {
     // Show room-only price (even if package discounts also exist)
-    rateDisplay = `<div style="background:rgba(255,255,255,0.25);color:#fff;display:inline-block;padding:12px 24px;border-radius:30px;font-size:22px;font-weight:600;margin-top:5px;">$${roomOnlyMatch.price}/night</div>`;
+    rateDisplay = `$${roomOnlyMatch.price}/night`;
   } else if (uniqueMatches.length === 1 && uniqueMatches[0].discountCode !== 'room-only') {
     // Only package discount found - don't show price (it's package total, not per-night)
     rateDisplay = '';
   }
-  
-  // Note: The "Available Discounts" section below will show ALL discounts
-  // including both room-only and package discounts when both are available
   
   // Build discount section showing ALL available discounts
   let discountSection = '';
@@ -307,7 +304,6 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
     for (const [code, match] of discountsByCode) {
       const discountLabel = discountLabels[code] || 'Promotional Discount';
       
-      // Check if this is a room discount (can compare prices) or package discount
       let discountDetails = '';
       
       // Try to find room-only price for comparison
@@ -318,111 +314,326 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
           // Room discount with calculable savings
           const savings = roomOnlyMatch.price - match.price;
           discountDetails = `
-            <div style="margin-top:8px;">
-              <div style="color:#1BC5D4;font-size:16px;font-weight:600;margin-bottom:4px;">Save $${savings} per night!</div>
-              <div style="color:#6b7280;font-size:14px;">Was $${roomOnlyMatch.price}/night, now $${match.price}/night</div>
-            </div>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top: 8px;">
+              <tr>
+                <td>
+                  <div style="color: #1BC5D4; font-size: 16px; font-weight: 600; margin-bottom: 4px; font-family: Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+                    Save $${savings} per night!
+                  </div>
+                  <div style="color: #6b7280; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+                    Was $${roomOnlyMatch.price}/night, now $${match.price}/night
+                  </div>
+                </td>
+              </tr>
+            </table>
           `;
         } else {
           // Package discount or no savings
           discountDetails = `
-            <div style="margin-top:8px;">
-              <div style="color:#1BC5D4;font-size:16px;font-weight:600;">Check DTA for pricing!</div>
-            </div>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top: 8px;">
+              <tr>
+                <td>
+                  <div style="color: #1BC5D4; font-size: 16px; font-weight: 600; font-family: Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+                    Check DTA for pricing!
+                  </div>
+                </td>
+              </tr>
+            </table>
           `;
         }
       } else {
         // No room-only data, assume it's a package discount
         discountDetails = `
-          <div style="margin-top:8px;">
-            <div style="color:#1BC5D4;font-size:16px;font-weight:600;">Check DTA for pricing!</div>
-          </div>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top: 8px;">
+            <tr>
+              <td>
+                <div style="color: #1BC5D4; font-size: 16px; font-weight: 600; font-family: Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+                  Check DTA for pricing!
+                </div>
+              </td>
+            </tr>
+          </table>
         `;
       }
       
       discountItems.push(`
-        <div style="margin-bottom:15px;padding:15px;background:#ffffff;border-left:4px solid #1BC5D4;border-radius:6px;box-shadow:0 2px 4px rgba(0,0,0,0.05);">
-          <strong style="color:#1F202D;font-size:16px;display:block;">${discountLabel}</strong>
-          ${discountDetails}
-        </div>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 15px;">
+          <tr>
+            <td style="padding: 15px; background-color: #ffffff; border-left: 4px solid #1BC5D4; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);" bgcolor="#ffffff">
+              <strong style="color: #1F202D; font-size: 16px; display: block; font-family: Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+                ${discountLabel}
+              </strong>
+              ${discountDetails}
+            </td>
+          </tr>
+        </table>
       `);
     }
     
     if (discountItems.length > 0) {
       discountSection = `
-        <div style="margin-bottom:25px;padding:20px;background:#e6f9fb;border-left:4px solid #1BC5D4;border-radius:8px;">
-          <h4 style="color:#1F202D;margin:0 0 15px 0;font-size:18px;font-weight:600;">Available Discounts:</h4>
-          ${discountItems.join('')}
-        </div>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 25px;">
+          <tr>
+            <td style="padding: 20px; background-color: #e6f9fb; border-left: 4px solid #1BC5D4; border-radius: 8px;" bgcolor="#e6f9fb">
+              <h4 style="color: #1F202D; margin: 0 0 15px 0; font-size: 18px; font-weight: 600; font-family: Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+                Available Discounts:
+              </h4>
+              ${discountItems.join('')}
+            </td>
+          </tr>
+        </table>
       `;
     }
   }
   
-  const reservationRow = alert.reservation_number 
-    ? `<div style="display:flex;justify-content:space-between;">
-        <span style="color:#1F202D;font-weight:600;">Reservation #:</span>
-        <span style="color:#1F202D;">${alert.reservation_number}</span>
-      </div>`
-    : '';
-  
   const html = `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <title>Room Finder Alert</title>
+  <!--[if mso]>
+  <style type="text/css">
+    table {border-collapse:collapse;border-spacing:0;margin:0;}
+    div, td {padding:0;}
+    div {margin:0 !important;}
+  </style>
+  <nxml:namespace ns="urn:schemas-microsoft-com:vml" prefix="v" />
+  <nxml:namespace ns="urn:schemas-microsoft-com:office:office" prefix="o" />
+  <![endif]-->
+  <style type="text/css">
+    /* CLIENT-SPECIFIC STYLES */
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+    
+    /* RESET STYLES */
+    body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; }
+    img { display: block; }
+    
+    /* iOS BLUE LINKS */
+    a[x-apple-data-detectors] {
+      color: inherit !important;
+      text-decoration: none !important;
+      font-size: inherit !important;
+      font-family: inherit !important;
+      font-weight: inherit !important;
+      line-height: inherit !important;
+    }
+    
+    /* ANDROID CENTER FIX */
+    div[style*="margin: 16px 0;"] { margin: 0 !important; }
+    
+    /* MEDIA QUERIES */
+    @media only screen and (max-width: 600px) {
+      .wrapper { width: 100% !important; }
+      .content { padding: 20px 15px !important; }
+      .header { padding: 30px 15px !important; }
+      .button { padding: 12px 20px !important; font-size: 14px !important; }
+      h1 { font-size: 24px !important; }
+      h2 { font-size: 20px !important; }
+    }
+    
+    /* DARK MODE STYLES */
+    @media (prefers-color-scheme: dark) {
+      .dark-mode-bg-navy { background-color: #1F202D !important; }
+      .dark-mode-bg-turquoise { background-color: #1BC5D4 !important; }
+      .dark-mode-bg-white { background-color: #ffffff !important; }
+      .dark-mode-text-white { color: #ffffff !important; }
+      .dark-mode-text-navy { color: #1F202D !important; }
+      .dark-mode-text-turquoise { color: #1BC5D4 !important; }
+      .logo-container { background-color: #1F202D !important; }
+      .force-light-bg { background-color: #ffffff !important; }
+    }
+    
+    /* Gmail dark mode */
+    [data-ogsc] .dark-mode-bg-navy { background-color: #1F202D !important; }
+    [data-ogsc] .dark-mode-bg-turquoise { background-color: #1BC5D4 !important; }
+    [data-ogsc] .dark-mode-bg-white { background-color: #ffffff !important; }
+    [data-ogsc] .logo-container { background-color: #1F202D !important; }
+  </style>
 </head>
-<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#f5f5f5;">
-  <div style="max-width:600px;margin:0 auto;background:#ffffff;">
-    <!-- Header -->
-    <div style="background:#1F202D;padding:40px 20px;text-align:center;">
-      <img src="https://beta.mouseagents.com/wp-content/uploads/2025/10/Mouse-Agents-Clean-Logo-Transparent-600x300px.webp" alt="Mouse Agents" style="width:180px;height:90px;display:block;margin:0 auto 15px;">
-      <h1 style="color:#1BC5D4;margin:0;font-size:28px;font-weight:600;">Room Finder Alert</h1>
-    </div>
-    
-    <div style="padding:30px 20px;">
-      <!-- Resort & Room Info -->
-      <div style="background:linear-gradient(135deg, #1BC5D4 0%, #15a8b5 100%);padding:30px;text-align:center;border-radius:12px;margin-bottom:25px;box-shadow:0 4px 6px rgba(27,197,212,0.15);">
-        <h2 style="color:#fff;margin:0 0 10px 0;font-size:26px;font-weight:600;">${alert.resort_name}</h2>
-        <h3 style="color:#fff;margin:0 0 15px 0;font-size:18px;font-weight:400;opacity:0.95;">${alert.room_category}</h3>
-        ${rateDisplay}
-      </div>
-      
-      ${discountSection}
-      
-      <!-- Booking Details -->
-      <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin-bottom:25px;">
-        <div style="margin-bottom:12px;">
-          <div style="display:flex;justify-content:space-between;">
-            <span style="color:#1F202D;font-weight:600;">Check-in:</span>
-            <span style="color:#1F202D;">${formatDate(alert.check_in_date)}</span>
-          </div>
-        </div>
-        <div style="margin-bottom:12px;">
-          <div style="display:flex;justify-content:space-between;">
-            <span style="color:#1F202D;font-weight:600;">Check-out:</span>
-            <span style="color:#1F202D;">${formatDate(alert.check_out_date)}</span>
-          </div>
-        </div>
-        <div style="margin-bottom:12px;">
-          <div style="display:flex;justify-content:space-between;">
-            <span style="color:#1F202D;font-weight:600;">Client:</span>
-            <span style="color:#1F202D;">${alert.client_name}</span>
-          </div>
-        </div>
-        ${reservationRow}
-      </div>
-      
-      <!-- Action Buttons -->
-      <div style="text-align:center;margin:25px 0;">
-        <a href="https://www.disneytravelagents.com/" style="background:#1BC5D4;color:#fff;text-decoration:none;padding:14px 30px;border-radius:6px;display:inline-block;margin:0 5px 10px 5px;font-weight:600;font-size:16px;box-shadow:0 2px 4px rgba(27,197,212,0.3);">Reserve This Room</a>
-        <a href="https://mouseagents.com/room-finder/dashboard/" style="background:#1F202D;color:#fff;text-decoration:none;padding:14px 30px;border-radius:6px;display:inline-block;margin:0 5px 10px 5px;font-weight:600;font-size:16px;box-shadow:0 2px 4px rgba(31,32,45,0.3);">Manage Alerts</a>
-      </div>
-    </div>
-    
-    <!-- Footer -->
-    <div style="background:#1F202D;padding:20px;text-align:center;">
-      <p style="color:#ffffff;font-size:13px;margin:0;opacity:0.9;">Mouse Agents, Inc.</p>
-    </div>
-  </div>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background-color: #f5f5f5;">
+  
+  <!--[if mso | IE]>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+      <td>
+  <![endif]-->
+  
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin: 0; padding: 0; width: 100%; background-color: #f5f5f5;">
+    <tr>
+      <td align="center" style="padding: 0;">
+        
+        <table role="presentation" class="wrapper" width="600" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto; max-width: 600px; background-color: #ffffff;" bgcolor="#ffffff">
+          
+          <!-- HEADER -->
+          <tr>
+            <td class="header dark-mode-bg-navy logo-container" style="background-color: #1F202D; padding: 40px 20px; text-align: center;" bgcolor="#1F202D" align="center">
+              
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center" style="padding-bottom: 20px;">
+                    <img src="https://beta.mouseagents.com/wp-content/uploads/2025/10/Mouse-Agents-Clean-Logo-Transparent-600x300px.webp" 
+                         alt="Mouse Agents" 
+                         width="180" 
+                         height="90" 
+                         style="display: block; width: 180px; height: 90px; max-width: 180px; margin: 0 auto; border: 0; outline: none; text-decoration: none;"
+                         class="logo" />
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center">
+                    <h1 class="dark-mode-text-turquoise" style="color: #1BC5D4; margin: 0; font-size: 28px; font-weight: 600; line-height: 1.2; font-family: Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+                      Room Finder Alert
+                    </h1>
+                  </td>
+                </tr>
+              </table>
+              
+            </td>
+          </tr>
+          
+          <!-- MAIN CONTENT -->
+          <tr>
+            <td class="content force-light-bg" style="padding: 30px 20px; background-color: #ffffff;" bgcolor="#ffffff">
+              
+              <!-- Resort Header -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 25px;">
+                <tr>
+                  <td class="dark-mode-bg-turquoise" style="background: linear-gradient(135deg, #1BC5D4 0%, #15a8b5 100%); padding: 30px; text-align: center; border-radius: 12px; box-shadow: 0 4px 6px rgba(27,197,212,0.15);" bgcolor="#1BC5D4" align="center">
+                    
+                    <h2 class="dark-mode-text-white" style="color: #ffffff; margin: 0 0 10px 0; font-size: 26px; font-weight: 600; line-height: 1.2; font-family: Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+                      ${alert.resort_name}
+                    </h2>
+                    
+                    <h3 class="dark-mode-text-white" style="color: #ffffff; margin: 0 0 15px 0; font-size: 18px; font-weight: 400; line-height: 1.3; opacity: 0.95; font-family: Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+                      ${alert.room_category}
+                    </h3>
+                    
+                    ${rateDisplay ? `
+                    <div class="dark-mode-text-white" style="background: rgba(255,255,255,0.25); color: #ffffff; display: inline-block; padding: 12px 24px; border-radius: 30px; font-size: 22px; font-weight: 600; margin-top: 5px; font-family: Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+                      ${rateDisplay}
+                    </div>
+                    ` : ''}
+                    
+                  </td>
+                </tr>
+              </table>
+              
+              ${discountSection}
+              
+              <!-- Booking Details -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 25px; background-color: #f8f9fa; padding: 20px; border-radius: 8px;" bgcolor="#f8f9fa">
+                <tr>
+                  <td style="padding: 0;">
+                    
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                      <tr>
+                        <td style="padding-bottom: 12px;">
+                          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                            <tr>
+                              <td style="color: #1F202D; font-weight: 600; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">Check-in:</td>
+                              <td align="right" style="color: #1F202D; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">${formatDate(alert.check_in_date)}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-bottom: 12px;">
+                          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                            <tr>
+                              <td style="color: #1F202D; font-weight: 600; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">Check-out:</td>
+                              <td align="right" style="color: #1F202D; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">${formatDate(alert.check_out_date)}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-bottom: ${alert.reservation_number ? '12px' : '0'};">
+                          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                            <tr>
+                              <td style="color: #1F202D; font-weight: 600; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">Client:</td>
+                              <td align="right" style="color: #1F202D; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">${alert.client_name}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      ${alert.reservation_number ? `
+                      <tr>
+                        <td>
+                          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                            <tr>
+                              <td style="color: #1F202D; font-weight: 600; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">Reservation #:</td>
+                              <td align="right" style="color: #1F202D; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">${alert.reservation_number}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      ` : ''}
+                    </table>
+                    
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- Action Buttons -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center" style="padding: 25px 0;">
+                    
+                    <!-- Reserve Button -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 10px;">
+                      <tr>
+                        <td align="center" style="border-radius: 6px; background-color: #1BC5D4; box-shadow: 0 2px 4px rgba(27,197,212,0.3);" bgcolor="#1BC5D4">
+                          <a href="https://www.disneytravelagents.com/" target="_blank" style="display: inline-block; padding: 14px 30px; font-family: Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 6px; line-height: 1.2;">
+                            Reserve This Room
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                    
+                    <!-- Manage Alerts Button -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                      <tr>
+                        <td align="center" style="border-radius: 6px; background-color: #1F202D; box-shadow: 0 2px 4px rgba(31,32,45,0.3);" bgcolor="#1F202D">
+                          <a href="https://mouseagents.com/room-finder/dashboard/" target="_blank" style="display: inline-block; padding: 14px 30px; font-family: Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 6px; line-height: 1.2;">
+                            Manage Alerts
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                    
+                  </td>
+                </tr>
+              </table>
+              
+            </td>
+          </tr>
+          
+          <!-- FOOTER -->
+          <tr>
+            <td class="dark-mode-bg-navy" style="background-color: #1F202D; padding: 20px; text-align: center;" bgcolor="#1F202D" align="center">
+              <p class="dark-mode-text-white" style="color: #ffffff; font-size: 13px; margin: 0; opacity: 0.9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+                Mouse Agents, Inc.
+              </p>
+            </td>
+          </tr>
+          
+        </table>
+        
+      </td>
+    </tr>
+  </table>
+  
+  <!--[if mso | IE]>
+      </td>
+    </tr>
+  </table>
+  <![endif]-->
+  
 </body>
 </html>`;
 
