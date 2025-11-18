@@ -333,7 +333,7 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
   <div style="max-width:600px;margin:0 auto;background:#ffffff;">
     <!-- Header with proven structure from n8n -->
     <div style="background:#12202D;padding:30px;text-align:center;">
-      <img src="https://beta.mouseagents.com/wp-content/uploads/2025/11/Teal-Transparent-Logo-600x300-1.png" 
+      <img src="http://cdn.mcauto-images-production.sendgrid.net/bde4f566d6ba3b93/edb013f5-7136-417c-abf0-60ea49ab3464/600x300.png" 
            alt="Mouse Agents" 
            width="150" 
            height="75" 
