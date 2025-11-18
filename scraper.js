@@ -476,7 +476,7 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td align="center" style="padding-bottom: 20px;">
-                    <img src="https://beta.mouseagents.com/wp-content/uploads/2025/10/Mouse-Agents-Clean-Logo-Transparent-600x300px.webp" 
+                    <img src="https://beta.mouseagents.com/wp-content/uploads/2025/11/Mouse-Agents-Logo-2-Transparent-600x300-.png" 
                          alt="Mouse Agents" 
                          width="180" 
                          height="90" 
