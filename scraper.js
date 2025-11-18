@@ -332,7 +332,7 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
 <body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f5f5f5;">
   <div style="max-width:600px;margin:0 auto;background:#ffffff;">
     <!-- Header with proven structure from n8n -->
-    <div style="background:#1BC5D4;padding:30px;text-align:center;">
+    <div style="background:#12202D;padding:30px;text-align:center;">
       <img src="https://beta.mouseagents.com/wp-content/uploads/2025/11/Teal-Transparent-Logo-600x300-1.png" 
            alt="Mouse Agents" 
            width="150" 
