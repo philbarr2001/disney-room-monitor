@@ -11,7 +11,7 @@ const supabase = createClient(
 // Initialize SendGrid
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-// Helper functions
+// Helper functions 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
