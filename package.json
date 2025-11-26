@@ -5,7 +5,10 @@
   "description": "Self-hosted Disney room availability scraper",
   "main": "scraper.js",
   "scripts": {
-    "start": "node scraper.js"
+    "start": "node scraper.js",
+    "start:wdw": "node scraper.js",
+    "start:dlr": "node dlr-scraper.js",
+    "start:all": "node scraper.js && node dlr-scraper.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
