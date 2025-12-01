@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import sgMail from '@sendgrid/mail';
+// import sgMail from '@sendgrid/mail';  // SENDGRID - UNCOMMENT WHEN RESTORED
+import { Resend } from 'resend';  // RESEND - DELETE WHEN SENDGRID RESTORED
 import 'dotenv/config';
 
 // Initialize Supabase client
@@ -9,7 +10,8 @@ const supabase = createClient(
 );
 
 // Initialize SendGrid
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+// sgMail.setApiKey(process.env.SENDGRID_API_KEY);  // SENDGRID - UNCOMMENT WHEN RESTORED
+const resend = new Resend(process.env.RESEND_API_KEY);  // RESEND - DELETE WHEN SENDGRID RESTORED
 
 // Helper functions
 function delay(ms) {
@@ -389,18 +391,33 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
 </body>
 </html>`;
 
-  const msg = {
-    to: alert.user_email,
-    from: {
-      email: 'alerts@mouseagents.com',
-      name: 'Mouse Agents Room Finder'
-    },
-    subject: `Room Finder Alert: ${alert.resort_name}`,
-    html: html
-  };
+  const subject = `Room Finder Alert: ${alert.resort_name}`;
 
   try {
-    await sgMail.send(msg);
+    // ============================================================
+    // SENDGRID VERSION - UNCOMMENT THIS BLOCK WHEN RESTORED:
+    // ============================================================
+    // const msg = {
+    //   to: alert.user_email,
+    //   from: {
+    //     email: 'alerts@mouseagents.com',
+    //     name: 'Mouse Agents Room Finder'
+    //   },
+    //   subject: subject,
+    //   html: html
+    // };
+    // await sgMail.send(msg);
+
+    // ============================================================
+    // RESEND VERSION - DELETE THIS BLOCK WHEN SENDGRID RESTORED:
+    // ============================================================
+    await resend.emails.send({
+      from: 'Mouse Agents Room Finder <alerts@mouseagents.com>',
+      to: alert.user_email,
+      subject: subject,
+      html: html
+    });
+
     console.log(`  ✓ Email sent to ${alert.user_email}`);
   } catch (error) {
     console.log(`  ✗ Email error: ${error.message}`);
