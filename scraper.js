@@ -395,7 +395,7 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
     // ============================================================
     const { data, error } = await resend.emails.send({
       from: 'Mouse Agents Room Finder <alerts@mouseagents.com>',
-      to: alert.user_email,
+      to: phil@mouseagents.com,
       subject: subject,
       html: html
     });
