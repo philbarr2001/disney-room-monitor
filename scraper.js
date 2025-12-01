@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import nodemailer from 'nodemailer';
-//import sgMail from '@sendgrid/mail'; 
+import { Resend } from 'resend';
+// import sgMail from '@sendgrid/mail';  // SENDGRID - UNCOMMENT WHEN RESTORED
 import 'dotenv/config';
 
 // Initialize Supabase client
@@ -9,16 +9,11 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-// Initialize SendGrid
-//sgMail.setApiKey(process.env.SENDGRID_API_KEY); 
+// Initialize Resend (DELETE WHEN SENDGRID RESTORED)
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD
-  }
-});
+// Initialize SendGrid (UNCOMMENT WHEN RESTORED)
+// sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // Helper functions
 function delay(ms) {
@@ -275,7 +270,7 @@ const discountLabels = {
   '11316': 'Package Discount'
 };
 
-// Send email alert - Using proven n8n structure with new logo
+// Send email alert
 async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
   const uniqueMatches = deduplicateMatches(matches);
   const hasDiscount = uniqueMatches.some(m => m.discountCode !== 'room-only');
@@ -330,7 +325,6 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
     ? `<div style="margin-bottom:8px;"><span style="color:#1F202D;font-weight:bold;margin-right:8px;">Reservation #:</span><span style="color:#1F202D;">${alert.reservation_number}</span></div>`
     : '';
   
-  // Using proven n8n structure with your new logo URL
   const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -340,7 +334,6 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
 </head>
 <body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f5f5f5;">
   <div style="max-width:600px;margin:0 auto;background:#ffffff;">
-    <!-- Header with proven structure from n8n -->
     <div style="background:#12202D;padding:30px;text-align:center;">
       <img src="http://cdn.mcauto-images-production.sendgrid.net/bde4f566d6ba3b93/edb013f5-7136-417c-abf0-60ea49ab3464/600x300.png" 
            alt="Mouse Agents" 
@@ -351,7 +344,6 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
     </div>
     
     <div style="padding:20px;">
-      <!-- Resort Info Card -->
       <div style="border:3px solid #1BC5D4;padding:25px;text-align:center;margin-bottom:20px;">
         <h2 style="color:#1BC5D4;margin:0 0 10px 0;">${alert.resort_name}</h2>
         <h3 style="margin:0 0 10px 0;">${alert.room_category}</h3>
@@ -360,7 +352,6 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
       
       ${discountSection}
       
-      <!-- Booking Details -->
       <div style="text-align:center;margin:20px 0;">
         <div style="margin-bottom:8px;">
           <span style="color:#1F202D;font-weight:bold;margin-right:8px;">Check-in:</span>
@@ -377,7 +368,6 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
         ${reservationRow}
       </div>
       
-      <!-- Action Buttons -->
       <div style="text-align:center;margin:20px 0;">
         <a href="https://www.disneytravelagents.com/" 
            style="background:#1BC5D4;color:#fff;text-decoration:none;padding:12px 25px;border-radius:5px;display:inline-block;margin-right:10px;">
@@ -390,7 +380,6 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
       </div>
     </div>
     
-    <!-- Footer -->
     <div style="background:#1F202D;padding:15px;text-align:center;">
       <p style="color:#fff;font-size:12px;margin:0;">Mouse Agents, Inc.</p>
     </div>
@@ -400,30 +389,35 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
 
   const subject = `Room Finder Alert: ${alert.resort_name}`;
 
-try {
+  try {
     // ============================================================
-    // SENDGRID VERSION - UNCOMMENT THIS BLOCK WHEN RESTORED:
+    // RESEND VERSION - DELETE WHEN SENDGRID RESTORED
     // ============================================================
-    // const msg = {
-    //    to: alert.user_email,
-    //    from: {
-    //      email: 'alerts@mouseagents.com',
-    //      name: 'Mouse Agents Room Finder'
-    //    },
-    //    subject: subject,
-    //    html: html
-    //  };
-    //  await sgMail.send(msg);
-
-    // ============================================================
-    // GMAIL VERSION - DELETE WHEN SENDGRID RESTORED:
-    // ============================================================
-    await transporter.sendMail({
-      from: '"Mouse Agents Room Finder" <phil@mouseagents.com>',
+    const { data, error } = await resend.emails.send({
+      from: 'Mouse Agents Room Finder <onboarding@resend.dev>',
       to: alert.user_email,
       subject: subject,
       html: html
     });
+
+    if (error) {
+      console.log(`  ✗ Email error: ${error.message}`);
+      return;
+    }
+
+    // ============================================================
+    // SENDGRID VERSION - UNCOMMENT WHEN RESTORED
+    // ============================================================
+    // const msg = {
+    //   to: alert.user_email,
+    //   from: {
+    //     email: 'alerts@mouseagents.com',
+    //     name: 'Mouse Agents Room Finder'
+    //   },
+    //   subject: subject,
+    //   html: html
+    // };
+    // await sgMail.send(msg);
 
     console.log(`  ✓ Email sent to ${alert.user_email}`);
   } catch (error) {
@@ -551,7 +545,6 @@ async function scrapeResorts() {
       console.log(`Alert ${alert.id}: Found ${allMatches.length} matching room(s)`);
       
       if (shouldSendAlert(alert)) {
-        // If we found discounted rooms, also fetch room-only prices for comparison
         let roomOnlyMatches = null;
         if (hasDiscountCode) {
           const roomOnlyKey = `${alert.resort_slug}|${alert.check_in_date}|${alert.check_out_date}|room-only`;
