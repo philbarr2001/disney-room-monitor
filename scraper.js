@@ -394,7 +394,7 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
     // RESEND VERSION - DELETE WHEN SENDGRID RESTORED
     // ============================================================
     const { data, error } = await resend.emails.send({
-      from: 'Mouse Agents Room Finder <onboarding@resend.dev>',
+      from: 'Mouse Agents Room Finder <alerts@mouseagents.com>',
       to: alert.user_email,
       subject: subject,
       html: html
