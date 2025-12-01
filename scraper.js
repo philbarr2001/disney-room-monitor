@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import sgMail from '@sendgrid/mail'; 
+import nodemailer from 'nodemailer';
+//import sgMail from '@sendgrid/mail'; 
 import 'dotenv/config';
 
 // Initialize Supabase client
@@ -9,7 +10,15 @@ const supabase = createClient(
 );
 
 // Initialize SendGrid
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);  // SENDGRID - UNCOMMENT WHEN RESTORED
+//sgMail.setApiKey(process.env.SENDGRID_API_KEY); 
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD
+  }
+});
 
 // Helper functions
 function delay(ms) {
@@ -391,22 +400,30 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
 
   const subject = `Room Finder Alert: ${alert.resort_name}`;
 
-  try {
+try {
     // ============================================================
     // SENDGRID VERSION - UNCOMMENT THIS BLOCK WHEN RESTORED:
     // ============================================================
-    const msg = {
-       to: alert.user_email,
-       from: {
-         email: 'alerts@mouseagents.com',
-         name: 'Mouse Agents Room Finder'
-       },
-       subject: subject,
-       html: html
-     };
-     await sgMail.send(msg);
+    // const msg = {
+    //    to: alert.user_email,
+    //    from: {
+    //      email: 'alerts@mouseagents.com',
+    //      name: 'Mouse Agents Room Finder'
+    //    },
+    //    subject: subject,
+    //    html: html
+    //  };
+    //  await sgMail.send(msg);
 
-
+    // ============================================================
+    // GMAIL VERSION - DELETE WHEN SENDGRID RESTORED:
+    // ============================================================
+    await transporter.sendMail({
+      from: '"Mouse Agents Room Finder" <phil@mouseagents.com>',
+      to: alert.user_email,
+      subject: subject,
+      html: html
+    });
 
     console.log(`  ✓ Email sent to ${alert.user_email}`);
   } catch (error) {
