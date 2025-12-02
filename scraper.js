@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Resend } from 'resend';
-// import sgMail from '@sendgrid/mail';  // SENDGRID - UNCOMMENT WHEN RESTORED
+import sgMail from '@sendgrid/mail';  
 import 'dotenv/config';
 
 // Initialize Supabase client
@@ -9,11 +8,8 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-// Initialize Resend (DELETE WHEN SENDGRID RESTORED)
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-// Initialize SendGrid (UNCOMMENT WHEN RESTORED)
-// sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+// Initialize SendGrid 
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // Helper functions
 function delay(ms) {
@@ -389,41 +385,22 @@ async function sendAlertEmail(alert, matches, roomOnlyMatches = null) {
 
   const subject = `Room Finder Alert: ${alert.resort_name}`;
 
-  try {
-    // ============================================================
-    // RESEND VERSION - DELETE WHEN SENDGRID RESTORED
-    // ============================================================
-    const { data, error } = await resend.emails.send({
-      from: 'Mouse Agents Room Finder <alerts@mouseagents.com>',
+try {
+    const msg = {
       to: alert.user_email,
+      from: {
+        email: 'alerts@mouseagents.com',
+        name: 'Mouse Agents Room Finder'
+      },
       subject: subject,
       html: html
-    });
-
-    if (error) {
-      console.log(`  ✗ Email error: ${error.message}`);
-      return;
-    }
-
-    // ============================================================
-    // SENDGRID VERSION - UNCOMMENT WHEN RESTORED
-    // ============================================================
-    // const msg = {
-    //   to: alert.user_email,
-    //   from: {
-    //     email: 'alerts@mouseagents.com',
-    //     name: 'Mouse Agents Room Finder'
-    //   },
-    //   subject: subject,
-    //   html: html
-    // };
-    // await sgMail.send(msg);
+    };
+    await sgMail.send(msg);
 
     console.log(`  ✓ Email sent to ${alert.user_email}`);
   } catch (error) {
     console.log(`  ✗ Email error: ${error.message}`);
   }
-}
 
 // Main scraping function
 async function scrapeResorts() {
