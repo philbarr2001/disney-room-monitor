@@ -8,6 +8,7 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
+
 // Initialize SendGrid 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
