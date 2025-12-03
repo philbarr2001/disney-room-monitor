@@ -402,6 +402,7 @@ try {
   } catch (error) {
     console.log(`  ✗ Email error: ${error.message}`);
   }
+}
 
 // Main scraping function
 async function scrapeResorts() {
