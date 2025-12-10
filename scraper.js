@@ -465,24 +465,22 @@ async function scrapeResorts() {
   
   const apiCache = new Map();
   
+  // Sequential requests with randomized delays to avoid rate limiting
   for (const [resortSlug, searches] of searchesByResort) {
     console.log(`\n=== Scraping ${resortSlug} (${searches.length} unique searches) ===`);
     
-    await Promise.all(
-      searches.map(async (search) => {
-        console.log(`  API: ${search.code} | ${search.checkin} to ${search.checkout}`);
-        const rooms = await fetchDisneyRooms(search.resortSlug, search.code, search.checkin, search.checkout);
-        console.log(`  ✓ ${search.code} returned ${rooms.length} rooms`);
-        apiCache.set(search.key, rooms);
-      })
-    );
-    
-    const totalResorts = searchesByResort.size;
-    let currentIndex = Array.from(searchesByResort.keys()).indexOf(resortSlug);
-    
-    if (currentIndex < totalResorts - 1) {
-      await delay(500);
+    for (const search of searches) {
+      console.log(`  API: ${search.code} | ${search.checkin} to ${search.checkout}`);
+      const rooms = await fetchDisneyRooms(search.resortSlug, search.code, search.checkin, search.checkout);
+      console.log(`  ✓ ${search.code} returned ${rooms.length} rooms`);
+      apiCache.set(search.key, rooms);
+      
+      // Randomized delay between requests (1.5-2.5 seconds)
+      await delay(1500 + Math.random() * 1000);
     }
+    
+    // Longer randomized delay between resorts (3-5 seconds)
+    await delay(3000 + Math.random() * 2000);
   }
   
   console.log('\n=== Processing Results ===\n');
