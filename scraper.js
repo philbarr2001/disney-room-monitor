@@ -66,8 +66,7 @@ const roomMappingsByResort = {
   'riviera-resort': { "Deluxe Studio - Resort View": "10", "Deluxe Studio - Preferred View": "A1", "2 Bedroom Villa - Resort View": "H0", "2 Bedroom Villa - Preferred View": "J0", "Tower Studio - Resort View": "W0", "1 Bedroom Villa - Preferred View": "C0", "1 Bedroom Villa - Resort View": "A9", "3 Bedroom Grand Villa": "T0" },
   'saratoga-springs-resort-and-spa': { "Deluxe Studio": "TA", "Deluxe Studio - Preferred": "S9", "1 Bedroom Villa - Preferred": "SB", "2 Bedroom Villa": "TC", "2 Bedroom Villa - Preferred": "SH", "Treehouse Villa": "TH", "3-Bedroom Grand Villa - Preferred": "SK", "3-Bedroom Grand Villa": "TD", "1 Bedroom Villa": "TB" },
   'dvc-cabins-at-fort-wilderness-resort': { "1 Bedroom Cabin": "AD6" },
-  'campsites-at-fort-wilderness-resort': { "Full Hook-Up Campsite": "AG1", "Preferred Campsite": "AG2", "Premium Campsite": "AG3", "Premium Meadow Campsite": "AG4", "Tent or Pop-Up Campsite": "AG0" },
-  'villas-at-grand-floridian-resort-and-spa': { "Deluxe Studio - Preferred View": "81", "1 Bedroom Villa - Preferred View": "82", "2 Bedroom Villa - Preferred View": "83", "3 Bedroom Grand Villa - Preferred View": "85", "Deluxe Studio - Resort View": "86", "1 Bedroom Villa - Resort View": "87", "2 Bedroom Villa - Resort View": "88", "Resort Studio - Resort View": "AAI", "Resort Studio - Preferred View": "AAN", "Resort Studio - Theme Park View": "AAT" },
+'campsites-at-fort-wilderness-resort': { "Full Hook-Up Campsite": ["FD", "AG1"], "Preferred Campsite": ["FA", "AG2"], "Premium Campsite": ["ZZ", "AG3"], "Premium Meadow Campsite": ["FP", "AG4"], "Tent or Pop-Up Campsite": ["FB", "AG0"] },  'villas-at-grand-floridian-resort-and-spa': { "Deluxe Studio - Preferred View": "81", "1 Bedroom Villa - Preferred View": "82", "2 Bedroom Villa - Preferred View": "83", "3 Bedroom Grand Villa - Preferred View": "85", "Deluxe Studio - Resort View": "86", "1 Bedroom Villa - Resort View": "87", "2 Bedroom Villa - Resort View": "88", "Resort Studio - Resort View": "AAI", "Resort Studio - Preferred View": "AAN", "Resort Studio - Theme Park View": "AAT" },
   'wilderness-lodge-resort': { "Fireworks View": "JZ", "Resort View": "JB", "Resort View - King Bed": "Z3", "Water View": "JC", "Water View - King Bed": "Z9", "Fireworks View - King Bed": "Z5", "Resort View - Club Level": "JD", "Deluxe Room - Club Level Access": "JS", "Resort View - King Bed - Club Level": "ZS" },
   'yacht-club-resort': { "2 Bedroom Suite - Club Level Access": "Y2", "Resort View": "YC", "Water View": "YD", "Water View - Club Level": "YG", "Captain's Deck Suite - Club Level Access": "YH", "Resort View - Club Level": "YK", "Turret Suite - Club Level Access": "YT", "Commodore VP Suite - Club Level": "YV" }
 };
@@ -165,15 +164,18 @@ async function fetchDisneyRooms(resortId, discountCode, checkinDate, checkoutDat
 // Find matching rooms based on alert criteria
 function findMatchingRooms(rooms, alert) {
   const matches = [];
-  const alertRoomCode = roomMappingsByResort[alert.resort_slug]?.[alert.room_category];
+  const alertRoomCodeRaw = roomMappingsByResort[alert.resort_slug]?.[alert.room_category];
   
-  if (!alertRoomCode) {
+  if (!alertRoomCodeRaw) {
     console.log(`  Warning: No room code found for ${alert.room_category} at ${alert.resort_slug}`);
     return matches;
   }
   
+  // Support both single codes and arrays of codes
+  const alertRoomCodes = Array.isArray(alertRoomCodeRaw) ? alertRoomCodeRaw : [alertRoomCodeRaw];
+  
   for (const room of rooms) {
-    if (room.code !== alertRoomCode) continue;
+    if (!alertRoomCodes.includes(room.code)) continue;
     if (room.reasonUnavailable) continue;
     if (!room.displayPrice?.basePrice?.subtotal) continue;
     
