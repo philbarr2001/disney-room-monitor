@@ -36,9 +36,6 @@ const slugToDisneyAPI = {
 function getDisneyAPISlug(internalSlug) {
   return slugToDisneyAPI[internalSlug] || internalSlug;
 }
-function getDisneyAPISlug(internalSlug) {
-  return slugToDisneyAPI[internalSlug] || internalSlug;
-}
 
 // Get correct Fort Wilderness room code based on check-in date
 function getFortWildernessRoomCode(roomCategory, checkInDate) {
