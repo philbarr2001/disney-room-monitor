@@ -36,7 +36,38 @@ const slugToDisneyAPI = {
 function getDisneyAPISlug(internalSlug) {
   return slugToDisneyAPI[internalSlug] || internalSlug;
 }
+function getDisneyAPISlug(internalSlug) {
+  return slugToDisneyAPI[internalSlug] || internalSlug;
+}
 
+// Get correct Fort Wilderness room code based on check-in date
+function getFortWildernessRoomCode(roomCategory, checkInDate) {
+  const checkIn = new Date(checkInDate);
+  const cutoffDate = new Date('2026-01-01T00:00:00');
+  const use2026Codes = checkIn >= cutoffDate;
+  
+  const codes2025 = {
+    'Tent or Pop-Up Campsite': 'FB',
+    'Full Hook-Up Campsite': 'FD',
+    'Preferred Campsite': 'FA',
+    'Premium Campsite': 'ZZ',
+    'Premium Meadow Campsite': 'FP'
+  };
+  
+  const codes2026 = {
+    'Tent or Pop-Up Campsite': 'AG0',
+    'Full Hook-Up Campsite': 'AG1',
+    'Preferred Campsite': 'AG2',
+    'Premium Campsite': 'AG3',
+    'Premium Meadow Campsite': 'AG4'
+  };
+  
+  return use2026Codes ? codes2026[roomCategory] : codes2025[roomCategory];
+}
+
+// Complete room code mappings from Apify
+const roomMappingsByResort = {
+  
 // Complete room code mappings from Apify
 const roomMappingsByResort = {
   'all-star-movies-resort': { "Preferred Room": "EP", "Standard Room": "EA" },
@@ -66,7 +97,8 @@ const roomMappingsByResort = {
   'riviera-resort': { "Deluxe Studio - Resort View": "10", "Deluxe Studio - Preferred View": "A1", "2 Bedroom Villa - Resort View": "H0", "2 Bedroom Villa - Preferred View": "J0", "Tower Studio - Resort View": "W0", "1 Bedroom Villa - Preferred View": "C0", "1 Bedroom Villa - Resort View": "A9", "3 Bedroom Grand Villa": "T0" },
   'saratoga-springs-resort-and-spa': { "Deluxe Studio": "TA", "Deluxe Studio - Preferred": "S9", "1 Bedroom Villa - Preferred": "SB", "2 Bedroom Villa": "TC", "2 Bedroom Villa - Preferred": "SH", "Treehouse Villa": "TH", "3-Bedroom Grand Villa - Preferred": "SK", "3-Bedroom Grand Villa": "TD", "1 Bedroom Villa": "TB" },
   'dvc-cabins-at-fort-wilderness-resort': { "1 Bedroom Cabin": "AD6" },
-'campsites-at-fort-wilderness-resort': { "Full Hook-Up Campsite": ["FD", "AG1"], "Preferred Campsite": ["FA", "AG2"], "Premium Campsite": ["ZZ", "AG3"], "Premium Meadow Campsite": ["FP", "AG4"], "Tent or Pop-Up Campsite": ["FB", "AG0"] },  'villas-at-grand-floridian-resort-and-spa': { "Deluxe Studio - Preferred View": "81", "1 Bedroom Villa - Preferred View": "82", "2 Bedroom Villa - Preferred View": "83", "3 Bedroom Grand Villa - Preferred View": "85", "Deluxe Studio - Resort View": "86", "1 Bedroom Villa - Resort View": "87", "2 Bedroom Villa - Resort View": "88", "Resort Studio - Resort View": "AAI", "Resort Studio - Preferred View": "AAN", "Resort Studio - Theme Park View": "AAT" },
+  'campsites-at-fort-wilderness-resort': { "Tent or Pop-Up Campsite": "FB", "Full Hook-Up Campsite": "FD", "Preferred Campsite": "FA", "Premium Campsite": "ZZ", "Premium Meadow Campsite": "FP"},  
+  'villas-at-grand-floridian-resort-and-spa': { "Deluxe Studio - Preferred View": "81", "1 Bedroom Villa - Preferred View": "82", "2 Bedroom Villa - Preferred View": "83", "3 Bedroom Grand Villa - Preferred View": "85", "Deluxe Studio - Resort View": "86", "1 Bedroom Villa - Resort View": "87", "2 Bedroom Villa - Resort View": "88", "Resort Studio - Resort View": "AAI", "Resort Studio - Preferred View": "AAN", "Resort Studio - Theme Park View": "AAT" },
   'wilderness-lodge-resort': { "Fireworks View": "JZ", "Resort View": "JB", "Resort View - King Bed": "Z3", "Water View": "JC", "Water View - King Bed": "Z9", "Fireworks View - King Bed": "Z5", "Resort View - Club Level": "JD", "Deluxe Room - Club Level Access": "JS", "Resort View - King Bed - Club Level": "ZS" },
   'yacht-club-resort': { "2 Bedroom Suite - Club Level Access": "Y2", "Resort View": "YC", "Water View": "YD", "Water View - Club Level": "YG", "Captain's Deck Suite - Club Level Access": "YH", "Resort View - Club Level": "YK", "Turret Suite - Club Level Access": "YT", "Commodore VP Suite - Club Level": "YV" }
 };
@@ -75,8 +107,30 @@ const roomMappingsByResort = {
 const roomCodeToNameByResort = {};
 for (const [resortSlug, roomMap] of Object.entries(roomMappingsByResort)) {
   roomCodeToNameByResort[resortSlug] = {};
-  for (const [roomName, code] of Object.entries(roomMap)) {
-    roomCodeToNameByResort[resortSlug][code] = roomName;
+  
+  // Special handling for Fort Wilderness - add both 2025 and 2026 codes
+  if (resortSlug === 'campsites-at-fort-wilderness-resort') {
+    const codes2025 = {
+      'FB': 'Tent or Pop-Up Campsite',
+      'FD': 'Full Hook-Up Campsite',
+      'FA': 'Preferred Campsite',
+      'ZZ': 'Premium Campsite',
+      'FP': 'Premium Meadow Campsite'
+    };
+    
+    const codes2026 = {
+      'AG0': 'Tent or Pop-Up Campsite',
+      'AG1': 'Full Hook-Up Campsite',
+      'AG2': 'Preferred Campsite',
+      'AG3': 'Premium Campsite',
+      'AG4': 'Premium Meadow Campsite'
+    };
+    
+    roomCodeToNameByResort[resortSlug] = { ...codes2025, ...codes2026 };
+  } else {
+    for (const [roomName, code] of Object.entries(roomMap)) {
+      roomCodeToNameByResort[resortSlug][code] = roomName;
+    }
   }
 }
 
@@ -164,14 +218,21 @@ async function fetchDisneyRooms(resortId, discountCode, checkinDate, checkoutDat
 // Find matching rooms based on alert criteria
 function findMatchingRooms(rooms, alert) {
   const matches = [];
-  const alertRoomCodeRaw = roomMappingsByResort[alert.resort_slug]?.[alert.room_category];
+  let alertRoomCodeRaw = roomMappingsByResort[alert.resort_slug]?.[alert.room_category];
   
   if (!alertRoomCodeRaw) {
     console.log(`  Warning: No room code found for ${alert.room_category} at ${alert.resort_slug}`);
     return matches;
   }
   
-  // Support both single codes and arrays of codes
+  // Special handling for Fort Wilderness - select correct code based on check-in date
+  if (alert.resort_slug === 'campsites-at-fort-wilderness-resort') {
+    const correctCode = getFortWildernessRoomCode(alert.room_category, alert.check_in_date);
+    alertRoomCodeRaw = correctCode;
+    console.log(`  Fort Wilderness: Using code ${correctCode} for ${alert.room_category} (check-in: ${alert.check_in_date})`);
+  }
+  
+  // Support both single codes and arrays of codes (for future use)
   const alertRoomCodes = Array.isArray(alertRoomCodeRaw) ? alertRoomCodeRaw : [alertRoomCodeRaw];
   
   for (const room of rooms) {
