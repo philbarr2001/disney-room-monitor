@@ -65,8 +65,6 @@ function getFortWildernessRoomCode(roomCategory, checkInDate) {
 // Complete room code mappings from Apify
 const roomMappingsByResort = {
   
-// Complete room code mappings from Apify
-const roomMappingsByResort = {
   'all-star-movies-resort': { "Preferred Room": "EP", "Standard Room": "EA" },
   'all-star-music-resort': { "Standard Room": "AA", "Preferred Room": "AP", "Family Suite": "AB" },
   'all-star-sports-resort': { "Standard Room": "SA", "Preferred Room": "SP" },
