@@ -257,26 +257,21 @@ function findMatchingRooms(rooms, alert) {
     return matches;
 }
 
-// Deduplicate matches - prefer discounted over room-only
+// Deduplicate matches - keep one match per room type per discount code
+// This ensures all available discounts are shown in the email
 function deduplicateMatches(matches) {
     if (matches.length <= 1) return matches;
 
-    const byRoomType = {};
-    for (const match of matches) {
-        const key = `${match.roomType}`;
-        if (!byRoomType[key]) {
-            byRoomType[key] = [];
-        }
-        byRoomType[key].push(match);
-    }
-
+    const seen = new Set();
     const deduplicated = [];
-    for (const roomMatches of Object.values(byRoomType)) {
-        const discounted = roomMatches.find(m => m.discountCode !== 'room-only');
-        if (discounted) {
-            deduplicated.push(discounted);
-        } else {
-            deduplicated.push(roomMatches[0]);
+    
+    for (const match of matches) {
+        // Create a unique key combining room type and discount code
+        const key = `${match.roomType}|${match.discountCode}`;
+        
+        if (!seen.has(key)) {
+            seen.add(key);
+            deduplicated.push(match);
         }
     }
 
