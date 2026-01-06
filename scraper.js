@@ -464,147 +464,196 @@ try {
 }
 
 // Main scraping function
+// OPTIMIZATION: Skip discount searches when room-only returns zero results
 async function scrapeResorts() {
-  console.log('\n=== Disney Scraper Started ===');
-  console.log(`Time: ${new Date().toISOString()}\n`);
+    console.log('\n=== Disney Scraper Started ===');
+    console.log(`Time: ${new Date().toISOString()}\n`);
 
-  const { data: alerts, error } = await supabase
-    .from('alerts')
-    .select('*')
-    .eq('status', 'active');
+    const { data: alerts, error } = await supabase
+        .from('alerts')
+        .select('*')
+        .eq('status', 'active');
 
-  if (error) throw error;
-  
-  console.log(`Found ${alerts.length} active alerts`);
-  
-  const uniqueSearches = new Map();
-  
-  alerts.forEach(alert => {
-    let discountCodes = alert.selected_discount_codes || ['room-only'];
-    discountCodes = getValidDiscountCodes(alert.check_in_date, discountCodes);
-    
-    if (discountCodes.length === 0) return;
-    
-    if (alert.availability_type === 'discounted') {
-      discountCodes = discountCodes.filter(code => code !== 'room-only');
-      if (discountCodes.length === 0) return;
-    }
-    
-    discountCodes.forEach(code => {
-      const key = `${alert.resort_slug}|${alert.check_in_date}|${alert.check_out_date}|${code}`;
-      if (!uniqueSearches.has(key)) {
-        uniqueSearches.set(key, []);
-      }
-      uniqueSearches.get(key).push(alert.id);
-    });
-  });
-  
-  console.log(`Deduplicated to ${uniqueSearches.size} unique API calls (from ${alerts.length} alerts)\n`);
+    if (error) throw error;
 
-  const searchesByResort = new Map();
-  
-  for (const [key, alertIds] of uniqueSearches) {
-    const [resortSlug, checkin, checkout, code] = key.split('|');
-    
-    if (!searchesByResort.has(resortSlug)) {
-      searchesByResort.set(resortSlug, []);
-    }
-    
-    searchesByResort.get(resortSlug).push({
-      resortSlug,
-      checkin,
-      checkout,
-      code,
-      key,
-      alertIds
-    });
-  }
-  
-  console.log(`Checking ${searchesByResort.size} unique resorts\n`);
-  
-  const apiCache = new Map();
-  
-  // Sequential requests with randomized delays to avoid rate limiting
-  for (const [resortSlug, searches] of searchesByResort) {
-    console.log(`\n=== Scraping ${resortSlug} (${searches.length} unique searches) ===`);
-    
-    for (const search of searches) {
-      console.log(`  API: ${search.code} | ${search.checkin} to ${search.checkout}`);
-      const rooms = await fetchDisneyRooms(search.resortSlug, search.code, search.checkin, search.checkout);
-      console.log(`  ✓ ${search.code} returned ${rooms.length} rooms`);
-      apiCache.set(search.key, rooms);
-      
-      // Randomized delay between requests (1.5-2.5 seconds)
-      await delay(1500 + Math.random() * 1000);
-    }
-    
-    // Longer randomized delay between resorts (3-5 seconds)
-    await delay(3000 + Math.random() * 2000);
-  }
-  
-  console.log('\n=== Processing Results ===\n');
-  
-  let totalMatches = 0;
-  let totalEmailsSent = 0;
-  
-  for (const alert of alerts) {
-    let discountCodes = alert.selected_discount_codes || ['room-only'];
-    discountCodes = getValidDiscountCodes(alert.check_in_date, discountCodes);
-    
-    if (alert.availability_type === 'discounted') {
-      discountCodes = discountCodes.filter(code => code !== 'room-only');
-      if (discountCodes.length === 0) {
-        await updateAlertTracking(alert.id, false);
-        continue;
-      }
-    }
-    
-    let allMatches = [];
-    let hasDiscountCode = false;
-    
-    for (const code of discountCodes) {
-      const key = `${alert.resort_slug}|${alert.check_in_date}|${alert.check_out_date}|${code}`;
-      const rooms = apiCache.get(key);
-      
-      if (!rooms) continue;
-      
-      const matches = findMatchingRooms(rooms, alert);
-      allMatches = allMatches.concat(matches);
-      
-      if (code !== 'room-only') {
-        hasDiscountCode = true;
-      }
-    }
-    
-    if (allMatches.length > 0) {
-      totalMatches += allMatches.length;
-      console.log(`Alert ${alert.id}: Found ${allMatches.length} matching room(s)`);
-      
-      if (shouldSendAlert(alert)) {
-        let roomOnlyMatches = null;
-        if (hasDiscountCode) {
-          const roomOnlyKey = `${alert.resort_slug}|${alert.check_in_date}|${alert.check_out_date}|room-only`;
-          const roomOnlyRooms = apiCache.get(roomOnlyKey);
-          
-          if (roomOnlyRooms) {
-            roomOnlyMatches = findMatchingRooms(roomOnlyRooms, alert);
-          }
+    console.log(`Found ${alerts.length} active alerts`);
+
+    const uniqueSearches = new Map();
+
+    alerts.forEach(alert => {
+        let discountCodes = alert.selected_discount_codes || ['room-only'];
+        discountCodes = getValidDiscountCodes(alert.check_in_date, discountCodes);
+
+        if (discountCodes.length === 0) return;
+
+        if (alert.availability_type === 'discounted') {
+            discountCodes = discountCodes.filter(code => code !== 'room-only');
+            if (discountCodes.length === 0) return;
         }
-        
-        await sendAlertEmail(alert, allMatches, roomOnlyMatches);
-        await updateAlertTracking(alert.id, true);
-        totalEmailsSent++;
-      } else {
-        await updateAlertTracking(alert.id, false);
-      }
-    } else {
-      await updateAlertTracking(alert.id, false);
+
+        discountCodes.forEach(code => {
+            const key = `${alert.resort_slug}|${alert.check_in_date}|${alert.check_out_date}|${code}`;
+            if (!uniqueSearches.has(key)) {
+                uniqueSearches.set(key, []);
+            }
+            uniqueSearches.get(key).push(alert.id);
+        });
+    });
+
+    console.log(`Deduplicated to ${uniqueSearches.size} unique API calls (from ${alerts.length} alerts)\n`);
+
+    // Group searches by resort AND date range
+    const searchesByResortDate = new Map();
+
+    for (const [key, alertIds] of uniqueSearches) {
+        const [resortSlug, checkin, checkout, code] = key.split('|');
+        const resortDateKey = `${resortSlug}|${checkin}|${checkout}`;
+
+        if (!searchesByResortDate.has(resortDateKey)) {
+            searchesByResortDate.set(resortDateKey, []);
+        }
+
+        searchesByResortDate.get(resortDateKey).push({
+            resortSlug,
+            checkin,
+            checkout,
+            code,
+            key,
+            alertIds
+        });
     }
-  }
-  
-  console.log(`\nTotal: ${totalMatches} matching rooms found across ${alerts.length} alerts`);
-  console.log(`Emails sent: ${totalEmailsSent}`);
-  console.log('=== Scraper Complete ===');
+
+    console.log(`Grouped into ${searchesByResortDate.size} unique resort/date combinations\n`);
+
+    const apiCache = new Map();
+    let totalApiCalls = 0;
+    let skippedApiCalls = 0;
+
+    // Sequential requests with randomized delays
+    for (const [resortDateKey, searches] of searchesByResortDate) {
+        const [resortSlug, checkin, checkout] = resortDateKey.split('|');
+        
+        console.log(`\n=== Scraping ${resortSlug} | ${checkin} to ${checkout} ===`);
+        console.log(`   ${searches.length} searches queued`);
+
+        // Separate room-only from discount searches
+        const roomOnlySearch = searches.find(s => s.code === 'room-only');
+        const discountSearches = searches.filter(s => s.code !== 'room-only');
+
+        // STEP 1: Fetch room-only first (if present)
+        let roomOnlyRooms = [];
+        let hasRoomOnlyInventory = true;
+
+        if (roomOnlySearch) {
+            console.log(`   API: room-only`);
+            roomOnlyRooms = await fetchDisneyRooms(roomOnlySearch.resortSlug, 'room-only', roomOnlySearch.checkin, roomOnlySearch.checkout);
+            console.log(`   ✓ room-only returned ${roomOnlyRooms.length} rooms`);
+            apiCache.set(roomOnlySearch.key, roomOnlyRooms);
+            totalApiCalls++;
+
+            hasRoomOnlyInventory = roomOnlyRooms.length > 0;
+
+            await delay(1500 + Math.random() * 1000);
+        }
+
+        // STEP 2: Decide whether to search discount codes
+        if (discountSearches.length > 0) {
+            if (roomOnlySearch && !hasRoomOnlyInventory) {
+                // OPTIMIZATION: Skip discount searches - no base inventory
+                console.log(`   ⏭ SKIPPING ${discountSearches.length} discount searches - no inventory`);
+                
+                for (const search of discountSearches) {
+                    apiCache.set(search.key, []);
+                    skippedApiCalls++;
+                }
+            } else {
+                // Search discount codes
+                for (const search of discountSearches) {
+                    console.log(`   API: ${search.code}`);
+                    const rooms = await fetchDisneyRooms(search.resortSlug, search.code, search.checkin, search.checkout);
+                    console.log(`   ✓ ${search.code} returned ${rooms.length} rooms`);
+                    apiCache.set(search.key, rooms);
+                    totalApiCalls++;
+
+                    await delay(1500 + Math.random() * 1000);
+                }
+            }
+        }
+
+        await delay(3000 + Math.random() * 2000);
+    }
+
+    console.log('\n=== API Call Summary ===');
+    console.log(`   Total API calls made: ${totalApiCalls}`);
+    console.log(`   API calls skipped: ${skippedApiCalls}`);
+    if (skippedApiCalls > 0) {
+        const savingsPercent = ((skippedApiCalls / (totalApiCalls + skippedApiCalls)) * 100).toFixed(1);
+        console.log(`   Savings: ${savingsPercent}%`);
+    }
+
+    console.log('\n=== Processing Results ===\n');
+
+    let totalMatches = 0;
+    let totalEmailsSent = 0;
+
+    for (const alert of alerts) {
+        let discountCodes = alert.selected_discount_codes || ['room-only'];
+        discountCodes = getValidDiscountCodes(alert.check_in_date, discountCodes);
+
+        if (alert.availability_type === 'discounted') {
+            discountCodes = discountCodes.filter(code => code !== 'room-only');
+            if (discountCodes.length === 0) {
+                await updateAlertTracking(alert.id, false);
+                continue;
+            }
+        }
+
+        let allMatches = [];
+        let hasDiscountCode = false;
+
+        for (const code of discountCodes) {
+            const key = `${alert.resort_slug}|${alert.check_in_date}|${alert.check_out_date}|${code}`;
+            const rooms = apiCache.get(key);
+
+            if (!rooms) continue;
+
+            const matches = findMatchingRooms(rooms, alert);
+            allMatches = allMatches.concat(matches);
+
+            if (code !== 'room-only') {
+                hasDiscountCode = true;
+            }
+        }
+
+        if (allMatches.length > 0) {
+            totalMatches += allMatches.length;
+            console.log(`Alert ${alert.id}: Found ${allMatches.length} matching room(s)`);
+
+            if (shouldSendAlert(alert)) {
+                let roomOnlyMatches = null;
+                if (hasDiscountCode) {
+                    const roomOnlyKey = `${alert.resort_slug}|${alert.check_in_date}|${alert.check_out_date}|room-only`;
+                    const roomOnlyRooms = apiCache.get(roomOnlyKey);
+
+                    if (roomOnlyRooms) {
+                        roomOnlyMatches = findMatchingRooms(roomOnlyRooms, alert);
+                    }
+                }
+
+                await sendAlertEmail(alert, allMatches, roomOnlyMatches);
+                await updateAlertTracking(alert.id, true);
+                totalEmailsSent++;
+            } else {
+                await updateAlertTracking(alert.id, false);
+            }
+        } else {
+            await updateAlertTracking(alert.id, false);
+        }
+    }
+
+    console.log(`\nTotal: ${totalMatches} matching rooms found across ${alerts.length} alerts`);
+    console.log(`Emails sent: ${totalEmailsSent}`);
+    console.log('=== Scraper Complete ===');
 }
 
 // Run the scraper
