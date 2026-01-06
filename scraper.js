@@ -464,7 +464,7 @@ try {
 }
 
 // Main scraping function
-// OPTIMIZATION: Skip discount searches when room-only returns zero results
+// OPTIMIZATION: Skip discount searches when room-only returns zero results for a date range
 async function scrapeResorts() {
     console.log('\n=== Disney Scraper Started ===');
     console.log(`Time: ${new Date().toISOString()}\n`);
@@ -502,18 +502,17 @@ async function scrapeResorts() {
 
     console.log(`Deduplicated to ${uniqueSearches.size} unique API calls (from ${alerts.length} alerts)\n`);
 
-    // Group searches by resort AND date range
-    const searchesByResortDate = new Map();
+    // Group by resort (PRESERVED - keeps long delays only between resorts)
+    const searchesByResort = new Map();
 
     for (const [key, alertIds] of uniqueSearches) {
         const [resortSlug, checkin, checkout, code] = key.split('|');
-        const resortDateKey = `${resortSlug}|${checkin}|${checkout}`;
 
-        if (!searchesByResortDate.has(resortDateKey)) {
-            searchesByResortDate.set(resortDateKey, []);
+        if (!searchesByResort.has(resortSlug)) {
+            searchesByResort.set(resortSlug, []);
         }
 
-        searchesByResortDate.get(resortDateKey).push({
+        searchesByResort.get(resortSlug).push({
             resortSlug,
             checkin,
             checkout,
@@ -523,72 +522,90 @@ async function scrapeResorts() {
         });
     }
 
-    console.log(`Grouped into ${searchesByResortDate.size} unique resort/date combinations\n`);
+    console.log(`Checking ${searchesByResort.size} unique resorts\n`);
 
     const apiCache = new Map();
     let totalApiCalls = 0;
     let skippedApiCalls = 0;
 
-    // Sequential requests with randomized delays
-    for (const [resortDateKey, searches] of searchesByResortDate) {
-        const [resortSlug, checkin, checkout] = resortDateKey.split('|');
-        
-        console.log(`\n=== Scraping ${resortSlug} | ${checkin} to ${checkout} ===`);
-        console.log(`   ${searches.length} searches queued`);
+    // Sequential requests with randomized delays to avoid rate limiting
+    for (const [resortSlug, searches] of searchesByResort) {
+        console.log(`\n=== Scraping ${resortSlug} (${searches.length} unique searches) ===`);
 
-        // Separate room-only from discount searches
-        const roomOnlySearch = searches.find(s => s.code === 'room-only');
-        const discountSearches = searches.filter(s => s.code !== 'room-only');
+        // Group searches by date range WITHIN this resort
+        const searchesByDateRange = new Map();
 
-        // STEP 1: Fetch room-only first (if present)
-        let roomOnlyRooms = [];
-        let hasRoomOnlyInventory = true;
-
-        if (roomOnlySearch) {
-            console.log(`   API: room-only`);
-            roomOnlyRooms = await fetchDisneyRooms(roomOnlySearch.resortSlug, 'room-only', roomOnlySearch.checkin, roomOnlySearch.checkout);
-            console.log(`   ✓ room-only returned ${roomOnlyRooms.length} rooms`);
-            apiCache.set(roomOnlySearch.key, roomOnlyRooms);
-            totalApiCalls++;
-
-            hasRoomOnlyInventory = roomOnlyRooms.length > 0;
-
-            await delay(1500 + Math.random() * 1000);
+        for (const search of searches) {
+            const dateKey = `${search.checkin}|${search.checkout}`;
+            if (!searchesByDateRange.has(dateKey)) {
+                searchesByDateRange.set(dateKey, []);
+            }
+            searchesByDateRange.get(dateKey).push(search);
         }
 
-        // STEP 2: Decide whether to search discount codes
-        if (discountSearches.length > 0) {
-            if (roomOnlySearch && !hasRoomOnlyInventory) {
-                // OPTIMIZATION: Skip discount searches - no base inventory
-                console.log(`   ⏭ SKIPPING ${discountSearches.length} discount searches - no inventory`);
-                
-                for (const search of discountSearches) {
-                    apiCache.set(search.key, []);
-                    skippedApiCalls++;
-                }
-            } else {
-                // Search discount codes
-                for (const search of discountSearches) {
-                    console.log(`   API: ${search.code}`);
-                    const rooms = await fetchDisneyRooms(search.resortSlug, search.code, search.checkin, search.checkout);
-                    console.log(`   ✓ ${search.code} returned ${rooms.length} rooms`);
-                    apiCache.set(search.key, rooms);
-                    totalApiCalls++;
+        // Process each date range
+        for (const [dateKey, dateSearches] of searchesByDateRange) {
+            const [checkin, checkout] = dateKey.split('|');
+            
+            // Separate room-only from discount searches for this date range
+            const roomOnlySearch = dateSearches.find(s => s.code === 'room-only');
+            const discountSearches = dateSearches.filter(s => s.code !== 'room-only');
 
-                    await delay(1500 + Math.random() * 1000);
+            // STEP 1: Fetch room-only first (if present for this date range)
+            let skipDiscounts = false;
+
+            if (roomOnlySearch) {
+                console.log(`  API: room-only | ${checkin} to ${checkout}`);
+                const rooms = await fetchDisneyRooms(roomOnlySearch.resortSlug, 'room-only', roomOnlySearch.checkin, roomOnlySearch.checkout);
+                console.log(`  ✓ room-only returned ${rooms.length} rooms`);
+                apiCache.set(roomOnlySearch.key, rooms);
+                totalApiCalls++;
+
+                // Check if we should skip discount searches
+                if (rooms.length === 0 && discountSearches.length > 0) {
+                    skipDiscounts = true;
+                }
+
+                await delay(1500 + Math.random() * 1000);
+            }
+
+            // STEP 2: Handle discount searches
+            if (discountSearches.length > 0) {
+                if (skipDiscounts) {
+                    // OPTIMIZATION: No room-only inventory = skip discount searches
+                    console.log(`  ⏭ Skipping ${discountSearches.length} discount search(es) for ${checkin} - no base inventory`);
+                    
+                    for (const search of discountSearches) {
+                        apiCache.set(search.key, []);
+                        skippedApiCalls++;
+                    }
+                } else {
+                    // Either room-only has inventory, or no room-only search exists (discounted-only alerts)
+                    for (const search of discountSearches) {
+                        console.log(`  API: ${search.code} | ${search.checkin} to ${search.checkout}`);
+                        const rooms = await fetchDisneyRooms(search.resortSlug, search.code, search.checkin, search.checkout);
+                        console.log(`  ✓ ${search.code} returned ${rooms.length} rooms`);
+                        apiCache.set(search.key, rooms);
+                        totalApiCalls++;
+
+                        await delay(1500 + Math.random() * 1000);
+                    }
                 }
             }
         }
 
+        // Longer randomized delay between resorts (3-5 seconds) - PRESERVED
         await delay(3000 + Math.random() * 2000);
     }
 
+    // Log optimization metrics
     console.log('\n=== API Call Summary ===');
-    console.log(`   Total API calls made: ${totalApiCalls}`);
-    console.log(`   API calls skipped: ${skippedApiCalls}`);
+    console.log(`  Total API calls made: ${totalApiCalls}`);
+    console.log(`  API calls skipped (no inventory): ${skippedApiCalls}`);
     if (skippedApiCalls > 0) {
-        const savingsPercent = ((skippedApiCalls / (totalApiCalls + skippedApiCalls)) * 100).toFixed(1);
-        console.log(`   Savings: ${savingsPercent}%`);
+        const potentialCalls = totalApiCalls + skippedApiCalls;
+        const savingsPercent = ((skippedApiCalls / potentialCalls) * 100).toFixed(1);
+        console.log(`  Savings: ${savingsPercent}% (${skippedApiCalls} of ${potentialCalls} potential calls)`);
     }
 
     console.log('\n=== Processing Results ===\n');
